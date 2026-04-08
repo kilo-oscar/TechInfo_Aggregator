@@ -1,0 +1,182 @@
+[
+  {
+    "source_name": "arXiv",
+    "source_type": "paper",
+    "title": "Vision-Language-Action Models for Robotic Manipulation",
+    "url": "https://arxiv.org/abs/2401.12345",
+    "published_at": "2024-01-15",
+    "raw_summary": "VLAモデルを用いてロボットマニピュレーションを統合的に扱う研究。",
+    "raw_text": "This paper proposes a unified vision-language-action architecture for robotic manipulation tasks in structured and semi-structured environments."
+  },
+  {
+    "source_name": "arXiv",
+    "source_type": "paper",
+    "title": "Embodied Intelligence with Multimodal World Models",
+    "url": "https://arxiv.org/abs/2402.23456",
+    "published_at": "2024-02-03",
+    "raw_summary": "マルチモーダル世界モデルを使ったEmbodied AI研究。",
+    "raw_text": "The work studies multimodal world models that combine visual, proprioceptive, and language inputs for embodied decision making."
+  },
+  {
+    "source_name": "arXiv",
+    "source_type": "paper",
+    "title": "Force-Aware Policy Learning for Contact-Rich Assembly",
+    "url": "https://arxiv.org/abs/2403.34567",
+    "published_at": "2024-03-11",
+    "raw_summary": "接触を伴う組立作業に対する力覚対応ポリシー学習。",
+    "raw_text": "We present a policy learning approach that explicitly models contact forces for insertion, alignment, and assembly in industrial settings."
+  },
+  {
+    "source_name": "arXiv",
+    "source_type": "paper",
+    "title": "Tactile Representation Learning for Precision Grasping",
+    "url": "https://arxiv.org/abs/2404.45678",
+    "published_at": "2024-04-09",
+    "raw_summary": "精密把持のための触覚表現学習。",
+    "raw_text": "This paper explores self-supervised tactile representation learning for fragile object grasping and precision manipulation."
+  },
+  {
+    "source_name": "arXiv",
+    "source_type": "paper",
+    "title": "Agentic Planning for Long-Horizon Robot Tasks",
+    "url": "https://arxiv.org/abs/2405.56789",
+    "published_at": "2024-05-14",
+    "raw_summary": "長期的なロボットタスクのためのエージェント型計画。",
+    "raw_text": "The paper proposes an agentic planning framework for decomposing long-horizon robotic tasks into executable subtasks."
+  },
+  {
+    "source_name": "GitHub",
+    "source_type": "github",
+    "title": "openvla",
+    "url": "https://github.com/example/openvla",
+    "published_at": "2024-06-01",
+    "raw_summary": "Vision-Language-Actionモデルの実装例。",
+    "raw_text": "Repository containing training scripts, datasets, and evaluation tools for an open-source VLA model."
+  },
+  {
+    "source_name": "GitHub",
+    "source_type": "github",
+    "title": "robot-agent-workflows",
+    "url": "https://github.com/example/robot-agent-workflows",
+    "published_at": "2024-06-12",
+    "raw_summary": "ロボット向けエージェントワークフロー構築フレームワーク。",
+    "raw_text": "This repository provides agent workflow orchestration for robotics, including task planning, tool calling, and execution logs."
+  },
+  {
+    "source_name": "GitHub",
+    "source_type": "github",
+    "title": "haptic-teleop-stack",
+    "url": "https://github.com/example/haptic-teleop-stack",
+    "published_at": "2024-07-02",
+    "raw_summary": "力覚提示付き遠隔操作スタック。",
+    "raw_text": "A ROS2-based teleoperation stack integrating force feedback, bidirectional control, and operator-side haptic rendering."
+  },
+  {
+    "source_name": "GitHub",
+    "source_type": "github",
+    "title": "tactile-diffusion-policy",
+    "url": "https://github.com/example/tactile-diffusion-policy",
+    "published_at": "2024-07-18",
+    "raw_summary": "触覚情報を使う拡散ポリシー実装。",
+    "raw_text": "Code for tactile-conditioned diffusion policies applied to dexterous manipulation and force-sensitive robotics tasks."
+  },
+  {
+    "source_name": "GitHub",
+    "source_type": "github",
+    "title": "expo-monitor-bot",
+    "url": "https://github.com/example/expo-monitor-bot",
+    "published_at": "2024-08-04",
+    "raw_summary": "展示会公式サイト更新を監視するボット。",
+    "raw_text": "A crawler and notification bot that tracks updates from robotics exhibitions, conferences, and trade show websites."
+  },
+  {
+    "source_name": "NVIDIA Newsroom",
+    "source_type": "company",
+    "title": "NVIDIA Expands Physical AI Tooling for Robotics Developers",
+    "url": "https://nvidianews.example.com/physical-ai-tooling",
+    "published_at": "2024-08-20",
+    "raw_summary": "NVIDIAがロボティクス開発者向けPhysical AI関連ツールを拡充。",
+    "raw_text": "The announcement highlights simulation, foundation models, and robotics developer tooling for industrial and research applications."
+  },
+  {
+    "source_name": "Boston Dynamics Blog",
+    "source_type": "company",
+    "title": "New Capabilities for Mobile Manipulation Platforms",
+    "url": "https://bostondynamics.example.com/mobile-manipulation",
+    "published_at": "2024-09-03",
+    "raw_summary": "移動マニピュレーション向け新機能の紹介。",
+    "raw_text": "The blog post describes improvements in perception, autonomy, and fleet integration for mobile manipulation robots."
+  },
+  {
+    "source_name": "ABB News",
+    "source_type": "company",
+    "title": "ABB Announces AI-Enhanced Industrial Robot Cell",
+    "url": "https://abb.example.com/ai-robot-cell",
+    "published_at": "2024-09-17",
+    "raw_summary": "AI強化型産業用ロボットセルの発表。",
+    "raw_text": "ABB introduced an AI-enhanced robot cell combining machine vision, planning software, and adaptive automation for factories."
+  },
+  {
+    "source_name": "Motion Lib",
+    "source_type": "company",
+    "title": "Real Haptics Platform Update for Precision Remote Work",
+    "url": "https://motionlib.example.com/real-haptics-update",
+    "published_at": "2024-10-01",
+    "raw_summary": "高精度遠隔作業向けリアルハプティクス更新情報。",
+    "raw_text": "The update outlines improved force reproduction fidelity and industrial teleoperation use cases for precision remote tasks."
+  },
+  {
+    "source_name": "OpenAI Blog",
+    "source_type": "company",
+    "title": "Agent Systems for Research and Operations",
+    "url": "https://openai.example.com/agent-systems-operations",
+    "published_at": "2024-10-10",
+    "raw_summary": "研究や業務運用に向けたAgentシステムの考え方。",
+    "raw_text": "The article discusses agentic systems, tool use, orchestration, and safe deployment patterns in real-world operations."
+  },
+  {
+    "source_name": "ICRA 2026",
+    "source_type": "event",
+    "title": "IEEE ICRA 2026 Call for Papers",
+    "url": "https://icra2026.example.org/call-for-papers",
+    "published_at": "2025-09-15",
+    "raw_summary": "ICRA 2026の論文募集情報。",
+    "raw_text": "The call for papers covers robotics, automation, embodied intelligence, planning, learning, manipulation, and field robotics."
+  },
+  {
+    "source_name": "ROSCon 2025",
+    "source_type": "event",
+    "title": "ROSCon 2025 Program Highlights",
+    "url": "https://roscon2025.example.org/program-highlights",
+    "published_at": "2025-08-28",
+    "raw_summary": "ROSCon 2025の主要セッション概要。",
+    "raw_text": "Highlights include sessions on ROS2 tooling, robot learning integration, simulation, and production deployment practices."
+  },
+  {
+    "source_name": "Automate 2026",
+    "source_type": "event",
+    "title": "Automate 2026 Exhibitor Preview",
+    "url": "https://automate2026.example.org/exhibitor-preview",
+    "published_at": "2026-02-11",
+    "raw_summary": "Automate 2026出展企業プレビュー。",
+    "raw_text": "The exhibitor preview includes automation vendors, robotics companies, AI software providers, and machine vision suppliers."
+  },
+  {
+    "source_name": "LinkedIn",
+    "source_type": "sns_post",
+    "title": "Industrial Robotics Team Shares New Teleoperation Demo",
+    "url": "https://linkedin.example.com/posts/industrial-teleop-demo",
+    "published_at": "2025-11-06",
+    "raw_summary": "企業チームによる新しい遠隔操作デモの投稿。",
+    "raw_text": "A corporate LinkedIn post presents a teleoperation demo featuring force feedback, shared autonomy, and operator assistance."
+  },
+  {
+    "source_name": "X",
+    "source_type": "sns_post",
+    "title": "Humanoid Robotics Lab Shows Warehouse Manipulation Clip",
+    "url": "https://x.example.com/humanoid-lab/status/1234567890",
+    "published_at": "2025-12-18",
+    "raw_summary": "倉庫内マニピュレーションの短い実演動画。",
+    "raw_text": "A short post showcases humanoid manipulation in warehouse picking scenarios, with mention of policy learning and sim-to-real transfer."
+  }
+]

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ item.title }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    .box {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <h1>{{ item.title }}</h1>
+
+  <div class="box">
+    <p><b>ソース名:</b> {{ item.source_name }}</p>
+    <p><b>種別:</b> {{ item.source_type }}</p>
+    <p><b>公開日:</b> {{ item.published_at }}</p>
+    <p><b>URL:</b> <a href="{{ item.url }}" target="_blank">{{ item.url }}</a></p>
+    <p><b>取得日:</b> {{ item.fetched_at }}</p>
+  </div>
+
+  <div class="box">
+    <h3>raw_summary</h3>
+    <p>{{ item.raw_summary }}</p>
+  </div>
+
+  <div class="box">
+    <h3>raw_text</h3>
+    <pre>{{ item.raw_text }}</pre>
+  </div>
+
+  <p><a href="/">一覧に戻る</a></p>
+</body>
+</html>

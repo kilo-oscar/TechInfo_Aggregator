@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>収集データ一覧</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f7fb;
+      color: #222;
+    }
+
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-size: 36px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .summary-card {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .summary-card .label {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .summary-card .value {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 18px;
+    }
+
+    .filter-panel h2,
+    .results-panel h2 {
+      margin-top: 0;
+      font-size: 20px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .field input,
+    .field select,
+    .field button,
+    .field a {
+      padding: 10px 12px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    .field a {
+      text-decoration: none;
+      text-align: center;
+      background: #fafafa;
+      color: #333;
+      display: inline-block;
+    }
+
+    .field button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .field button:hover {
+      background: #1d4ed8;
+    }
+
+    .result-meta {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+
+    .result-card {
+      border: 1px solid #e3e7ee;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: #fcfdff;
+    }
+
+    .result-card h3 {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+      line-height: 1.4;
+    }
+
+    .result-card h3 a {
+      text-decoration: none;
+      color: #1d4ed8;
+    }
+
+    .result-card h3 a:hover {
+      text-decoration: underline;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    .meta-text {
+      color: #666;
+      font-size: 13px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+    }
+
+    .badge.paper { background: #2563eb; }
+    .badge.news { background: #059669; }
+    .badge.github { background: #111827; }
+    .badge.company { background: #7c3aed; }
+    .badge.event { background: #ea580c; }
+    .badge.sns_post { background: #db2777; }
+
+    .summary-text {
+      color: #333;
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+
+    .detail-link {
+      display: inline-block;
+      text-decoration: none;
+      font-size: 14px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+
+    .detail-link:hover {
+      background: #dbeafe;
+    }
+
+    .empty {
+      padding: 30px;
+      text-align: center;
+      color: #666;
+    }
+
+    @media (max-width: 1100px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>収集データ一覧</h1>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="label">総件数</div>
+        <div class="value">{{ total_count }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">論文</div>
+        <div class="value">{{ type_counts.get("paper", 0) }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">ニュース</div>
+        <div class="value">{{ type_counts.get("news", 0) }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">GitHub</div>
+        <div class="value">{{ type_counts.get("github", 0) }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">イベント</div>
+        <div class="value">{{ type_counts.get("event", 0) }}</div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="panel filter-panel">
+        <h2>フィルタ</h2>
+        <form method="get" action="/">
+          <div class="field">
+            <label for="q">キーワード</label>
+            <input type="text" name="q" id="q" value="{{ current_q }}">
+          </div>
+
+          <div class="field">
+            <label for="source_name">ソース名</label>
+            <select name="source_name" id="source_name">
+              <option value="">すべて</option>
+              {% for name in source_names %}
+                <option value="{{ name }}" {% if current_source_name == name %}selected{% endif %}>
+                  {{ name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="source_type">種別</label>
+            <select name="source_type" id="source_type">
+              <option value="">すべて</option>
+              {% for type in source_types %}
+                <option value="{{ type }}" {% if current_source_type == type %}selected{% endif %}>
+                  {{ type }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sort">並び替え項目</label>
+            <select name="sort" id="sort">
+              <option value="fetched_at" {% if current_sort == "fetched_at" %}selected{% endif %}>取得日</option>
+              <option value="published_at" {% if current_sort == "published_at" %}selected{% endif %}>公開日</option>
+              <option value="title" {% if current_sort == "title" %}selected{% endif %}>タイトル</option>
+              <option value="source_name" {% if current_sort == "source_name" %}selected{% endif %}>ソース名</option>
+              <option value="source_type" {% if current_sort == "source_type" %}selected{% endif %}>種別</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="order">順序</label>
+            <select name="order" id="order">
+              <option value="desc" {% if current_order == "desc" %}selected{% endif %}>降順</option>
+              <option value="asc" {% if current_order == "asc" %}selected{% endif %}>昇順</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <button type="submit">適用</button>
+          </div>
+
+          <div class="field">
+            <a href="/">リセット</a>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel results-panel">
+        <h2>検索結果</h2>
+        <div class="result-meta">{{ items|length }} 件表示</div>
+
+        {% if items %}
+          {% for item in items %}
+            <div class="result-card">
+              <h3><a href="/raw/{{ item.id }}">{{ item.title }}</a></h3>
+
+              <div class="meta-row">
+                <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
+                <span class="meta-text">{{ item.source_name }}</span>
+                <span class="meta-text">{{ item.published_at }}</span>
+              </div>
+
+              <div class="summary-text">{{ item.display_summary }}</div>
+
+              <a class="detail-link" href="/raw/{{ item.id }}">詳細を見る</a>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty">条件に一致するデータがありません。</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

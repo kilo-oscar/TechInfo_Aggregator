@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Run Flask App",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/app.py",
+        "console": "integratedTerminal"
+      },
+      {
+        "name": "Run Crawler",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/crawlers/dummy_crawler.py",
+        "console": "integratedTerminal"
+      },
+      {
+        "name": "Run arXiv Crawler",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/crawlers/arxiv_crawler.py",
+        "console": "integratedTerminal"
+      },
+      {
+        "name": "Run Google News Crawler",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/crawlers/google_news_crawler.py",
+        "console": "integratedTerminal"
+      }
+    ]
+  }
