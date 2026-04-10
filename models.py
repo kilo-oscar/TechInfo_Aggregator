@@ -16,6 +16,7 @@ class RawItem(db.Model):
     published_at = db.Column(db.String(100), nullable=True)
     actual_published_at = db.Column(db.String(100), nullable=True)
     crawl_batch_id = db.Column(db.String(100), nullable=True)
+    is_new = db.Column(db.Boolean, nullable=False, default=False)
     raw_summary = db.Column(db.Text, nullable=True)
     raw_text = db.Column(db.Text, nullable=True)
     fetched_at = db.Column(db.DateTime, default=datetime.utcnow)

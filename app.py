@@ -29,6 +29,9 @@ def ensure_schema() -> None:
     if "crawl_batch_id" not in existing_columns:
         db.session.execute(text("ALTER TABLE raw_items ADD COLUMN crawl_batch_id VARCHAR(100)"))
         db.session.commit()
+    if "is_new" not in existing_columns:
+        db.session.execute(text("ALTER TABLE raw_items ADD COLUMN is_new BOOLEAN DEFAULT 0"))
+        db.session.commit()
 
 
 with app.app_context():
@@ -557,8 +560,6 @@ def list_raw_items():
     news_category = request.args.get("news_category", "").strip()
     sort = request.args.get("sort", "published_at").strip()
     order = request.args.get("order", "desc").strip()
-    latest_crawl_batch_id = get_latest_crawl_batch_id()
-
     query = RawItem.query
 
     if q:
@@ -597,7 +598,7 @@ def list_raw_items():
     }
 
     sort_column = sortable_columns.get(sort, RawItem.published_at)
-    new_priority = case((RawItem.crawl_batch_id == latest_crawl_batch_id, 0), else_=1)
+    new_priority = case((RawItem.is_new.is_(True), 0), else_=1)
 
     if sort == "published_at":
         published_is_empty = case((RawItem.published_at.is_(None), 1), (RawItem.published_at == "", 1), else_=0)
@@ -632,7 +633,6 @@ def list_raw_items():
     for item in items:
         item.display_summary = clean_summary(item.raw_summary)
         enrich_event_fields(item)
-        item.is_new = bool(latest_crawl_batch_id and item.crawl_batch_id == latest_crawl_batch_id)
 
     event_groups: list[dict] = []
     event_country_tabs: list[dict] = []
@@ -696,8 +696,6 @@ def list_raw_items():
 def raw_detail(item_id):
     item = RawItem.query.get_or_404(item_id)
     enrich_event_fields(item)
-    latest_crawl_batch_id = get_latest_crawl_batch_id()
-    item.is_new = bool(latest_crawl_batch_id and item.crawl_batch_id == latest_crawl_batch_id)
     if item.source_type == "event":
         parent_key = build_event_parent_key(item)
         sibling_items = RawItem.query.filter(RawItem.source_type == "event").all()

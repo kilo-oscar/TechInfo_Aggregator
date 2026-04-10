@@ -7,6 +7,7 @@ import smtplib
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
+from collections import OrderedDict
 
 from app import app
 from crawler_utils import canonicalize_url, normalize_text
@@ -16,6 +17,16 @@ from models import RawItem
 BASE_DIR = Path(__file__).resolve().parent
 STATE_PATH = BASE_DIR / "instance" / "notified_items.json"
 MAX_SUMMARY_LENGTH = 220
+SOURCE_TYPE_LABELS = {
+    "news": "ニュース",
+    "event": "展示会",
+    "paper": "論文",
+    "policy": "政策",
+    "thinktank": "シンクタンク",
+    "company": "企業",
+    "github": "GitHub",
+    "sns_post": "SNS",
+}
 
 
 def item_notification_key(item: RawItem) -> str:
@@ -82,6 +93,26 @@ def format_item_block(item: RawItem) -> str:
     return "\n".join(lines)
 
 
+def group_items_by_source_type(items: list[RawItem]) -> OrderedDict[str, list[RawItem]]:
+    ordered_groups: OrderedDict[str, list[RawItem]] = OrderedDict()
+    for item in items:
+        source_type = (item.source_type or "").strip() or "other"
+        ordered_groups.setdefault(source_type, []).append(item)
+    return ordered_groups
+
+
+def group_items_by_source_name(items: list[RawItem]) -> OrderedDict[str, list[RawItem]]:
+    ordered_groups: OrderedDict[str, list[RawItem]] = OrderedDict()
+    for item in items:
+        source_name = (item.source_name or "").strip() or "unknown"
+        ordered_groups.setdefault(source_name, []).append(item)
+    return ordered_groups
+
+
+def source_type_label(source_type: str) -> str:
+    return SOURCE_TYPE_LABELS.get(source_type, source_type or "other")
+
+
 def build_message(sender: str, recipients: list[str], items: list[RawItem]) -> EmailMessage:
     now_label = datetime.now().strftime("%Y-%m-%d %H:%M")
     msg = EmailMessage()
@@ -89,13 +120,31 @@ def build_message(sender: str, recipients: list[str], items: list[RawItem]) -> E
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
 
+    groups = group_items_by_source_type(items)
     body_parts = [
         f"新規記事: {len(items)}件",
         "",
+        "カテゴリ別サマリ",
     ]
-    for item in items:
-        body_parts.append(format_item_block(item))
+    for source_type, group_items in groups.items():
+        body_parts.append(f"- {source_type_label(source_type)}: {len(group_items)}件")
+
+    body_parts.extend([
+        "",
+        "カテゴリ別新着一覧",
+        "",
+    ])
+
+    for source_type, group_items in groups.items():
+        body_parts.append(f"## {source_type_label(source_type)} ({len(group_items)}件)")
         body_parts.append("")
+        source_name_groups = group_items_by_source_name(group_items)
+        for source_name, source_items in source_name_groups.items():
+            body_parts.append(f"### {source_name} ({len(source_items)}件)")
+            body_parts.append("")
+            for item in source_items:
+                body_parts.append(format_item_block(item))
+                body_parts.append("")
 
     msg.set_content("\n".join(body_parts).rstrip() + "\n")
     return msg
