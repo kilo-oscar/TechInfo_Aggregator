@@ -1,0 +1,155 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import smtplib
+from datetime import datetime
+from email.message import EmailMessage
+from pathlib import Path
+
+from app import app
+from crawler_utils import canonicalize_url, normalize_text
+from models import RawItem
+
+
+BASE_DIR = Path(__file__).resolve().parent
+STATE_PATH = BASE_DIR / "instance" / "notified_items.json"
+MAX_SUMMARY_LENGTH = 220
+
+
+def item_notification_key(item: RawItem) -> str:
+    canonical_url = canonicalize_url(item.url)
+    if canonical_url:
+        return f"url:{canonical_url}"
+
+    published_at = item.published_at or ""
+    return f"title:{item.source_name}|{item.title}|{published_at}"
+
+
+def load_state() -> dict:
+    if not STATE_PATH.exists():
+        return {"sent_keys": []}
+
+    with STATE_PATH.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+        if not isinstance(data, dict):
+            return {"sent_keys": []}
+        sent_keys = data.get("sent_keys", [])
+        if not isinstance(sent_keys, list):
+            sent_keys = []
+        return {"sent_keys": sent_keys}
+
+
+def save_state(sent_keys: set[str]) -> None:
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "sent_keys": sorted(sent_keys),
+    }
+    with STATE_PATH.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def collect_new_items() -> tuple[list[RawItem], set[str]]:
+    state = load_state()
+    sent_keys = set(state["sent_keys"])
+
+    items = RawItem.query.order_by(RawItem.fetched_at.desc(), RawItem.id.desc()).all()
+    new_items: list[RawItem] = []
+
+    for item in items:
+        key = item_notification_key(item)
+        if key in sent_keys:
+            continue
+        new_items.append(item)
+
+    return new_items, sent_keys
+
+
+def format_item_block(item: RawItem) -> str:
+    summary = normalize_text(item.raw_summary or "", max_length=MAX_SUMMARY_LENGTH)
+    lines = [
+        f"[{item.source_type}] {item.title}",
+        f"source: {item.source_name}",
+        f"url: {canonicalize_url(item.url)}",
+    ]
+    if item.published_at:
+        lines.append(f"published_at: {item.published_at}")
+    lines.append(f"fetched_at: {item.fetched_at}")
+    if summary:
+        lines.append(f"summary: {summary}")
+    return "\n".join(lines)
+
+
+def build_message(sender: str, recipients: list[str], items: list[RawItem]) -> EmailMessage:
+    now_label = datetime.now().strftime("%Y-%m-%d %H:%M")
+    msg = EmailMessage()
+    msg["Subject"] = f"TechInfo_Aggregator 新規記事 {len(items)}件 {now_label}"
+    msg["From"] = sender
+    msg["To"] = ", ".join(recipients)
+
+    body_parts = [
+        f"新規記事: {len(items)}件",
+        "",
+    ]
+    for item in items:
+        body_parts.append(format_item_block(item))
+        body_parts.append("")
+
+    msg.set_content("\n".join(body_parts).rstrip() + "\n")
+    return msg
+
+
+def send_gmail(items: list[RawItem], dry_run: bool = False) -> bool:
+    sender = os.getenv("GMAIL_SENDER", "").strip()
+    app_password = os.getenv("GMAIL_APP_PASSWORD", "").strip()
+    recipients_raw = os.getenv("GMAIL_RECIPIENT", "").strip()
+    recipients = [addr.strip() for addr in recipients_raw.split(",") if addr.strip()]
+
+    if not sender or not app_password or not recipients:
+        print("gmail skipped: set GMAIL_SENDER, GMAIL_APP_PASSWORD, GMAIL_RECIPIENT")
+        return False
+
+    msg = build_message(sender, recipients, items)
+
+    if dry_run:
+        print(msg.get_content())
+        return True
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(sender, app_password)
+        smtp.send_message(msg)
+
+    print(f"gmail sent: recipients={len(recipients)}, items={len(items)}")
+    return True
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="新規記事のみを Gmail 送信する")
+    parser.add_argument("--dry-run", action="store_true", help="メール送信せず本文のみ表示する")
+    parser.add_argument("--limit", type=int, default=0, help="送信件数を先頭から制限する")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    with app.app_context():
+        new_items, sent_keys = collect_new_items()
+
+        if not new_items:
+            print("gmail skipped: no new items")
+            return
+
+        if args.limit and args.limit > 0:
+            new_items = new_items[: args.limit]
+
+        if send_gmail(new_items, dry_run=args.dry_run) and not args.dry_run:
+            sent_keys.update(item_notification_key(item) for item in new_items)
+            save_state(sent_keys)
+            print(f"gmail state updated: added={len(new_items)}")
+
+
+if __name__ == "__main__":
+    main()

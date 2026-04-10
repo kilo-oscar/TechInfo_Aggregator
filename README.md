@@ -282,6 +282,7 @@ chmod +x run_daily_crwalers.sh
 - `crawlers.thinktank_crawler`
 - `crawlers.government_policy_crawler`
 - `cleanup_raw_item_duplicates.py`
+- `send_new_items_gmail.py`
 
 ログ出力先:
 
@@ -321,6 +322,53 @@ python3 cleanup_raw_item_duplicates.py
 - `source_name + title + published_at` が同じレコード
 
 日次実行スクリプトの最後でも自動実行されます。
+
+### 新規記事だけを Gmail 送信したい場合
+
+日次実行の最後に `send_new_items_gmail.py` を実行すると、その回の収集結果のうち「まだ一度も通知していない記事」だけを Gmail 送信できます。
+
+このプロジェクトでは毎回 `reset_raw_items.py` を実行して DB を作り直しても差分通知できるように、通知済み状態を別ファイルに保存します。
+
+保存先:
+
+```text
+instance/notified_items.json
+```
+
+必要な環境変数:
+
+```bash
+export GMAIL_SENDER="your-address@gmail.com"
+export GMAIL_APP_PASSWORD="your-app-password"
+export GMAIL_RECIPIENT="your-address@gmail.com"
+```
+
+複数宛先に送りたい場合:
+
+```bash
+export GMAIL_RECIPIENT="a@example.com,b@example.com"
+```
+
+Gmail は通常のログインパスワードではなく、Google アカウントのアプリパスワードを使ってください。
+
+単体で動作確認したい場合:
+
+```bash
+python3 send_new_items_gmail.py --dry-run
+```
+
+件数を絞ってテストしたい場合:
+
+```bash
+python3 send_new_items_gmail.py --dry-run --limit 5
+python3 send_new_items_gmail.py --limit 5
+```
+
+実際に送信する場合:
+
+```bash
+python3 send_new_items_gmail.py
+```
 
 ## 11. 仮想環境を抜ける
 
@@ -393,6 +441,18 @@ http://127.0.0.1:5000
 - 少し時間をおいて再実行する
 - まず `python3 -m crawlers.mizuho_rt_crawler` を単体で試す
 - 必要なら日次実行の間隔を見直す
+
+### Gmail が送れない
+
+`send_new_items_gmail.py` 実行時に Gmail 送信がスキップされる場合は、環境変数が足りていない可能性があります。
+
+確認項目:
+
+- `GMAIL_SENDER`
+- `GMAIL_APP_PASSWORD`
+- `GMAIL_RECIPIENT`
+
+`--dry-run` で本文が出るかを先に確認すると切り分けしやすいです。
 
 ## 13. 補足
 

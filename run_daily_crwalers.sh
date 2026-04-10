@@ -11,6 +11,11 @@ cd "$PROJECT_DIR"
 
 echo "===== $(date '+%Y-%m-%d %H:%M:%S') START =====" >> "$LOG_FILE"
 
+# 対話シェル経由で bashrc を読み込み、Gmail 用の環境変数だけ取り込む
+if [ -f "$HOME/.bashrc" ]; then
+  eval "$(bash -ic 'declare -px GMAIL_SENDER GMAIL_APP_PASSWORD GMAIL_RECIPIENT 2>/dev/null | sed "s/^declare -x /export /"' 2>/dev/null)"
+fi
+
 # 仮想環境を有効化
 source "$PROJECT_DIR/.venv/bin/activate"
 
@@ -28,6 +33,7 @@ python3 -m crawlers.real_haptics_crawler >> "$LOG_FILE" 2>&1
 python3 -m crawlers.thinktank_crawler >> "$LOG_FILE" 2>&1
 python3 -m crawlers.government_policy_crawler >> "$LOG_FILE" 2>&1
 python3 cleanup_raw_item_duplicates.py >> "$LOG_FILE" 2>&1
+python3 send_new_items_gmail.py >> "$LOG_FILE" 2>&1
 
 echo "===== $(date '+%Y-%m-%d %H:%M:%S') END =====" >> "$LOG_FILE"
 echo "" >> "$LOG_FILE"
