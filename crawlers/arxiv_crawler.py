@@ -3,30 +3,10 @@ import requests
 import feedparser
 
 from app import app
-from models import db, RawItem
 
 from crawler_utils import save_raw_item, is_within_last_3_years
 
 ARXIV_API_URL = "http://export.arxiv.org/api/query"
-
-
-def save_raw_item(data: dict) -> bool:
-    existing = RawItem.query.filter_by(url=data["url"]).first()
-    if existing:
-        return False
-
-    item = RawItem(
-        source_name=data["source_name"],
-        source_type=data["source_type"],
-        title=data["title"],
-        url=data["url"],
-        published_at=data.get("published_at"),
-        raw_summary=data.get("raw_summary"),
-        raw_text=data.get("raw_text"),
-    )
-    db.session.add(item)
-    db.session.commit()
-    return True
 
 
 def fetch_arxiv_items(

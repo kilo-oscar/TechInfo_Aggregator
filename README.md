@@ -8,9 +8,9 @@ Physical AI / Robotics 関連の情報を収集して、Flask で一覧表示す
 2. 仮想環境に入る
 3. `requirements.txt` から必要なパッケージをインストールする
 4. クローラを実行してデータを収集する
-5. クローラを実行してデータを収集する
-6. Flask アプリを起動する
-7. ブラウザで確認する
+5. Flask アプリを起動する
+6. ブラウザで確認する
+7. 日次実行やリセット方法を確認する
 
 ## 1. 前提
 
@@ -145,6 +145,49 @@ python3 -m crawlers.murc_crawler
 python3 -m crawlers.government_policy_crawler
 ```
 
+### 収集される主な種別
+
+保存される `source_type` には主に次の値があります。
+
+- `news`
+- `paper`
+- `event`
+- `policy`
+- `thinktank`
+- `company`
+
+### クローラ実行時の保存先
+
+各クローラは取得したデータを SQLite に保存します。
+
+保存先:
+
+```text
+instance/techinfo.db
+```
+
+重複判定は基本的に URL 単位で行われ、同じ URL のデータは再登録されません。
+
+現在は保存時に次の重複も回避します。
+
+- `http` / `https` 違いを吸収した URL 重複
+- 追跡パラメータ付き URL の重複
+- 同じ `source_name + title + published_at` の重複
+
+### みずほリサーチ&テクノロジーズ向けクローラについて
+
+`crawlers.mizuho_rt_crawler` は、みずほ公開サイトで直接アクセス時に `403 Forbidden` が返ることがあるため、みずほ向けだけ取得方法を少し変えています。
+
+主な特徴:
+
+- `DuckDuckGo` 検索
+- `Google News RSS`
+- `r.jina.ai` 経由の本文取得
+- `https://www.mizuhobank.co.jp/corporate/industry/` 配下の収集
+- `industry/pdf` 配下の PDF 資料収集
+
+そのため、通常の HTML 記事だけでなく、業界調査資料や PDF も収集対象に含まれます。
+
 ## 6. Flask アプリを起動する
 
 データ収集後、次のコマンドでアプリを起動します。
@@ -164,6 +207,10 @@ python3 app.py
 - `http://127.0.0.1:5000`
 - `http://localhost:5000`
 
+### DB テーブルの自動作成
+
+`app.py` 起動時に `db.create_all()` が呼ばれるため、初回起動時は必要なテーブルが自動作成されます。
+
 ## 7. ブラウザで確認する
 
 一覧画面:
@@ -173,6 +220,16 @@ http://127.0.0.1:5000
 ```
 
 個別詳細画面は、一覧から開けます。
+
+### 一覧画面でできること
+
+- キーワード検索
+- `source_name` での絞り込み
+- `source_type` での絞り込み
+- `published_at` / `fetched_at` などでの並び替え
+- 各レコードの詳細表示
+
+詳細画面では、`raw_summary` と `raw_text` の保存内容を確認できます。
 
 ## 8. よく使う一連のコマンド
 
@@ -186,7 +243,53 @@ python3 -m crawlers.exhibition_crawler
 python3 app.py
 ```
 
-## 9. DB ファイルについて
+展示会以外もまとめて収集したい場合の例:
+
+```bash
+cd ~/ドキュメント/TechInfo_Aggregator
+source .venv/bin/activate
+python3 -m crawlers.arxiv_crawler
+python3 -m crawlers.google_news_crawler
+python3 -m crawlers.exhibition_crawler
+python3 -m crawlers.real_haptics_crawler
+python3 -m crawlers.thinktank_crawler
+python3 -m crawlers.government_policy_crawler
+python3 app.py
+```
+
+## 9. 日次実行スクリプト
+
+まとめてクローラを実行するためのスクリプトがあります。
+
+```bash
+./run_daily_crwalers.sh
+```
+
+実行権限が無い場合:
+
+```bash
+chmod +x run_daily_crwalers.sh
+./run_daily_crwalers.sh
+```
+
+このスクリプトは次を順番に実行します。
+
+- `reset_raw_items.py`
+- `crawlers.arxiv_crawler`
+- `crawlers.google_news_crawler`
+- `crawlers.exhibition_crawler`
+- `crawlers.real_haptics_crawler`
+- `crawlers.thinktank_crawler`
+- `crawlers.government_policy_crawler`
+- `cleanup_raw_item_duplicates.py`
+
+ログ出力先:
+
+```text
+logs/daily_crawlers.log
+```
+
+## 10. DB ファイルについて
 
 SQLite の DB は次に作成されます。
 
@@ -196,7 +299,30 @@ instance/techinfo.db
 
 クローラを実行すると、ここに収集結果が保存されます。
 
-## 10. 仮想環境を抜ける
+中身をすべて消して最初から取り直したい場合は、次のリセット用スクリプトを使えます。
+
+```bash
+python3 reset_raw_items.py
+```
+
+これは `raw_items` テーブルの内容を削除します。
+
+### 重複データを整理したい場合
+
+既存 DB に入ってしまった重複データを整理したい場合は、次のスクリプトを使えます。
+
+```bash
+python3 cleanup_raw_item_duplicates.py
+```
+
+このスクリプトは次の重複を削除します。
+
+- 正規化 URL が同じレコード
+- `source_name + title + published_at` が同じレコード
+
+日次実行スクリプトの最後でも自動実行されます。
+
+## 11. 仮想環境を抜ける
 
 作業が終わったら、仮想環境は次のコマンドで抜けられます。
 
@@ -204,7 +330,7 @@ instance/techinfo.db
 deactivate
 ```
 
-## 11. エラーが出たとき
+## 12. エラーが出たとき
 
 ### `ModuleNotFoundError: No module named 'bs4'`
 
@@ -246,7 +372,29 @@ http://127.0.0.1:5000
 
 別PCからアクセスする場合は、サーバー側のIP、ファイアウォール、バインドアドレスの確認が必要です。
 
-## 12. 補足
+### クローラ実行時にタイムアウトや取得失敗が出る
+
+外部サイト側の応答遅延や一時的なブロックで失敗することがあります。
+
+対処:
+
+- 少し時間をおいて再実行する
+- まず単体クローラで試す
+- `logs/daily_crawlers.log` を確認する
+
+### `403 Forbidden` や `429 Too Many Requests` が出る
+
+一部サイト、特にみずほ系ページではアクセス制限がかかることがあります。
+
+このプロジェクトでは、みずほ向けで `r.jina.ai` を使った回避経路を入れていますが、それでも短時間に連続アクセスすると `429 Too Many Requests` が出ることがあります。
+
+対処:
+
+- 少し時間をおいて再実行する
+- まず `python3 -m crawlers.mizuho_rt_crawler` を単体で試す
+- 必要なら日次実行の間隔を見直す
+
+## 13. 補足
 
 - 依存関係を追加したら、`requirements.txt` も更新してください。
 - Remote SSH で作業している場合も、コマンドは基本的に同じです。

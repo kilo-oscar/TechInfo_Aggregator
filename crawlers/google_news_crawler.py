@@ -4,31 +4,11 @@ from email.utils import parsedate_to_datetime
 import feedparser
 
 from app import app
-from models import db, RawItem
 
 from crawler_utils import save_raw_item, is_within_last_3_years
 
 
 GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
-
-
-def save_raw_item(data: dict) -> bool:
-    existing = RawItem.query.filter_by(url=data["url"]).first()
-    if existing:
-        return False
-
-    item = RawItem(
-        source_name=data["source_name"],
-        source_type=data["source_type"],
-        title=data["title"],
-        url=data["url"],
-        published_at=data.get("published_at"),
-        raw_summary=data.get("raw_summary"),
-        raw_text=data.get("raw_text"),
-    )
-    db.session.add(item)
-    db.session.commit()
-    return True
 
 
 def format_google_news_url(query: str, hl: str = "ja", gl: str = "JP", ceid: str = "JP:ja") -> str:
