@@ -4,6 +4,7 @@ from sqlalchemy import text
 from bs4 import BeautifulSoup
 import json
 from urllib.parse import urlencode
+import re
 
 from models import db, RawItem
 from typing import Optional
@@ -68,6 +69,53 @@ COUNTRY_RULES = [
     ("アラブ首長国連邦", ["uae", "united arab emirates", "dubai", "abu dhabi"]),
     ("サウジアラビア", ["saudi arabia", "riyadh"]),
 ]
+
+OFFICIAL_EVENT_DOMAINS = {
+    "irex.nikkan.co.jp",
+    "www.manufacturing-world.jp",
+    "www.fiweek.jp",
+    "www.nextech-week.jp",
+    "www.expo2025.or.jp",
+    "www.japan-it.jp",
+    "www.ceatec.com",
+    "ceatec.com",
+    "aismiley.co.jp",
+    "vision-ai-expo.jp",
+    "humanoidssummit.com",
+    "2026.ieee-humanoids.org",
+    "robot-technology.jp",
+    "tf.jma.or.jp",
+}
+
+VENUE_EVENT_DOMAINS = {
+    "www.t-i-forum.co.jp",
+    "www.m-messe.co.jp",
+}
+
+AGGREGATOR_EVENT_DOMAINS = {
+    "qviro.com",
+    "www.showsbee.com",
+    "www.tradefairdates.com",
+    "www.globaltradefairs.com",
+    "globaltradefairs.com",
+    "exhibitionsforyou.com",
+    "expolume.com",
+    "robohorizon.com",
+    "automationexpo.com",
+    "www.eventseye.com",
+    "www.m2mconference.com",
+    "www.seexpo.com",
+    "expoquote.co",
+    "jasumo.com",
+    "seminar-hiroba.com",
+    "techplay.jp",
+}
+
+PARENT_EVENT_SERIES = {
+    "nextech-week",
+    "japan-it-week",
+    "manufacturing-world",
+}
 
 
 def extract_event_country(item: RawItem) -> str:
@@ -178,6 +226,259 @@ def build_event_country_shortcuts(
     return shortcuts
 
 
+def parse_event_payload(item: RawItem) -> dict:
+    if item.source_type != "event" or not item.raw_text:
+        return {}
+
+    payload_text = item.raw_text
+    if payload_text.startswith("Event signature:"):
+        payload_text = payload_text.split("\n\n", 1)[1] if "\n\n" in payload_text else payload_text
+
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def format_event_period(start_date: Optional[str], end_date: Optional[str]) -> str:
+    if start_date and end_date:
+        if start_date == end_date:
+            return start_date
+        return f"{start_date} - {end_date}"
+    return start_date or end_date or ""
+
+
+def enrich_event_fields(item: RawItem) -> None:
+    payload = parse_event_payload(item)
+    item.event_start_date = payload.get("start_date", "") if payload else ""
+    item.event_end_date = payload.get("end_date", "") if payload else ""
+    item.event_location = payload.get("location", "") if payload else ""
+    item.event_period = format_event_period(item.event_start_date, item.event_end_date)
+
+
+def extract_event_year(item: RawItem) -> str:
+    for value in [getattr(item, "event_start_date", ""), item.published_at or "", item.title or ""]:
+        if not value:
+            continue
+        match = re.search(r"(20\d{2})", value)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def extract_event_series_key(item: RawItem) -> str:
+    blob = " ".join([
+        item.title or "",
+        item.raw_summary or "",
+        item.event_location or "",
+        item.url or "",
+    ]).lower()
+
+    series_patterns = [
+        ("vision-ai-expo", ["vision ai expo", "画像認識 ai expo"]),
+        ("ai-hakurankai", ["ai博覧会", "ai hakurankai"]),
+        ("nextech-week", ["nextech week", "nexttech week"]),
+        ("japan-it-week", ["japan it week"]),
+        ("ceatec", ["ceatec"]),
+        ("irex", ["irex", "international robot exhibition", "国際ロボット展"]),
+        ("robodex", ["robodex", "ロボデックス"]),
+        ("manufacturing-world", ["manufacturing world", "ものづくり ワールド", "ものづくりワールド"]),
+        ("humanoids-summit", ["humanoids summit"]),
+        ("humanoid-robot-expo", ["ヒューマノイドロボット expo", "humanoid robot expo"]),
+        ("physical-ai-expo", ["physical ai expo", "フィジカルai展", "フィジカル ai 展"]),
+        ("robot-technology-japan", ["robot technology japan"]),
+    ]
+    for key, keywords in series_patterns:
+        if any(keyword in blob for keyword in keywords):
+            return key
+
+    normalized = re.sub(r"\[[^\]]+\]", "", (item.title or "").lower())
+    normalized = re.sub(r"20\d{2}", "", normalized)
+    normalized = re.sub(r"[^a-z0-9一-龥ぁ-んァ-ヶ]+", " ", normalized)
+    normalized = " ".join(normalized.split())
+    return normalized[:80]
+
+
+def extract_event_season_token(item: RawItem) -> str:
+    blob = " ".join([item.title or "", item.raw_summary or "", item.url or ""]).lower()
+    season_patterns = [
+        ("spring", ["spring", "春"]),
+        ("summer", ["summer", "夏"]),
+        ("autumn", ["autumn", "fall", "秋"]),
+        ("winter", ["winter", "冬"]),
+    ]
+    for season, keywords in season_patterns:
+        if any(keyword in blob for keyword in keywords):
+            return season
+    return ""
+
+
+def build_event_parent_key(item: RawItem) -> str:
+    series_key = extract_event_series_key(item)
+    year = extract_event_year(item)
+    season = extract_event_season_token(item)
+    return "::".join([series_key, year, season])
+
+
+def classify_event_scope(item: RawItem) -> str:
+    series_key = extract_event_series_key(item)
+    if series_key not in PARENT_EVENT_SERIES:
+        return "standalone"
+
+    title_blob = " ".join([item.title or "", item.raw_summary or "", item.url or ""]).lower()
+    child_markers = {
+        "nextech-week": [
+            "ai・人工知能expo",
+            "ヒューマノイドロボット expo",
+            "ヒューマノイドロボットexpo",
+            "量子コンピューティングexpo",
+            "ブロックチェーンexpo",
+            "/visit/ai",
+            "/visit/hr",
+        ],
+        "japan-it-week": [
+            "現場dx expo",
+            "ai・業務自動化",
+            "/visit/ai",
+            "/visit/deskless",
+        ],
+        "manufacturing-world": [
+            "フィジカルai展",
+            "/about/physicalai",
+            "smart maintenance expo",
+        ],
+    }
+    if any(marker in title_blob for marker in child_markers.get(series_key, [])):
+        return "child"
+    if "来場案内" in title_blob or "/visit/" in title_blob:
+        return "child"
+    return "parent"
+
+
+def event_representation_score(item: RawItem) -> tuple[int, int, int]:
+    payload = parse_event_payload(item)
+    source_domain = str(payload.get("source_domain", "") or "")
+    score = 0
+
+    if source_domain in OFFICIAL_EVENT_DOMAINS:
+        score += 100
+    elif source_domain in VENUE_EVENT_DOMAINS:
+        score += 90
+    elif source_domain in AGGREGATOR_EVENT_DOMAINS:
+        score += 20
+    else:
+        score += 50
+
+    title_blob = f"{item.title or ''} {item.raw_summary or ''}".lower()
+    if "公式" in title_blob or "official" in title_blob:
+        score += 10
+    if item.event_start_date:
+        score += 5
+    if item.event_end_date:
+        score += 3
+    if payload.get("search_engine") == "official_seed":
+        score += 10
+
+    # Prefer pages that are event pages themselves over exhibitor/news articles.
+    noisy_terms = ["出展", "pressrelease", "プレスリリース", "開催速報", "ブース", "news", "article", "レポート", "guide"]
+    if any(term in title_blob or term in (item.url or "").lower() for term in noisy_terms):
+        score -= 25
+
+    return (score, item.id or 0, len(item.raw_summary or ""))
+
+
+def dedupe_event_items(items: list[RawItem]) -> list[RawItem]:
+    grouped: dict[tuple[str, str, str, str], list[RawItem]] = {}
+    others: list[RawItem] = []
+
+    for item in items:
+        enrich_event_fields(item)
+        series_key = extract_event_series_key(item)
+        event_year = extract_event_year(item)
+        season_key = extract_event_season_token(item)
+        if not series_key:
+            others.append(item)
+            continue
+        country = extract_event_country(item)
+        item.event_country = country
+        scope_key = classify_event_scope(item)
+        grouped.setdefault((series_key, event_year, season_key, scope_key), []).append(item)
+
+    representatives: list[RawItem] = []
+    for _, candidates in grouped.items():
+        candidates.sort(key=event_representation_score, reverse=True)
+        representatives.append(candidates[0])
+
+    series_with_dated_items = {
+        extract_event_series_key(item)
+        for item in representatives
+        if extract_event_year(item)
+    }
+    representatives = [
+        item
+        for item in representatives
+        if extract_event_year(item)
+        or extract_event_series_key(item) not in series_with_dated_items
+    ]
+
+    representatives.extend(others)
+    representatives.sort(key=lambda item: (item.published_at or "", item.id or 0), reverse=True)
+    return representatives
+
+
+def attach_event_hierarchy(items: list[RawItem], query_text: str = "") -> list[RawItem]:
+    normalized_query = (query_text or "").strip().lower()
+    for item in items:
+        enrich_event_fields(item)
+        item.event_series_key = extract_event_series_key(item)
+        item.event_year = extract_event_year(item)
+        item.event_season = extract_event_season_token(item)
+        item.event_parent_key = build_event_parent_key(item)
+        item.event_scope = classify_event_scope(item)
+        item.child_events = []
+
+    parent_map: dict[str, RawItem] = {}
+    child_buckets: dict[str, list[RawItem]] = {}
+
+    for item in items:
+        if item.event_scope == "parent":
+            existing = parent_map.get(item.event_parent_key)
+            if existing is None or event_representation_score(item) > event_representation_score(existing):
+                parent_map[item.event_parent_key] = item
+
+    for item in items:
+        if item.event_scope != "child":
+            continue
+        child_buckets.setdefault(item.event_parent_key, []).append(item)
+
+    visible_items: list[RawItem] = []
+    attached_child_ids: set[int] = set()
+
+    for item in items:
+        if item.event_scope == "child":
+            continue
+        if item.event_scope == "parent":
+            children = sorted(
+                child_buckets.get(item.event_parent_key, []),
+                key=event_representation_score,
+                reverse=True,
+            )
+            item.child_events = children
+            attached_child_ids.update(child.id for child in children)
+        visible_items.append(item)
+
+    if normalized_query:
+        for child_items in child_buckets.values():
+            for child in child_items:
+                blob = " ".join([child.title or "", child.raw_summary or "", child.url or ""]).lower()
+                if normalized_query in blob and child.id not in attached_child_ids:
+                    visible_items.append(child)
+
+    visible_items.sort(key=lambda item: (item.published_at or "", item.id or 0), reverse=True)
+    return visible_items
+
+
 @app.route("/")
 def list_raw_items():
     q = request.args.get("q", "").strip()
@@ -204,6 +505,7 @@ def list_raw_items():
 
     event_preview_query = query.filter(RawItem.source_type == "event")
     event_preview_items = event_preview_query.all()
+    event_preview_items = dedupe_event_items(event_preview_items)
     event_preview_groups = build_event_groups(event_preview_items) if event_preview_items else []
     event_country_shortcuts = build_event_country_shortcuts(event_country, event_preview_groups, request.args)
 
@@ -240,9 +542,13 @@ def list_raw_items():
         query = query.order_by(sort_column.desc())
 
     items = query.all()
+    if items and all(item.source_type == "event" for item in items):
+        items = dedupe_event_items(items)
+        items = attach_event_hierarchy(items, q)
 
     for item in items:
         item.display_summary = clean_summary(item.raw_summary)
+        enrich_event_fields(item)
 
     event_groups: list[dict] = []
     event_country_tabs: list[dict] = []
@@ -302,6 +608,17 @@ def list_raw_items():
 @app.route("/raw/<int:item_id>")
 def raw_detail(item_id):
     item = RawItem.query.get_or_404(item_id)
+    enrich_event_fields(item)
+    if item.source_type == "event":
+        parent_key = build_event_parent_key(item)
+        sibling_items = RawItem.query.filter(RawItem.source_type == "event").all()
+        sibling_items = dedupe_event_items(sibling_items)
+        sibling_items = attach_event_hierarchy(sibling_items, "")
+        item.child_events = []
+        for candidate in sibling_items:
+            if getattr(candidate, "event_parent_key", "") == parent_key and getattr(candidate, "event_scope", "") == "parent":
+                item.child_events = getattr(candidate, "child_events", [])
+                break
     if item.url and not item.actual_published_at:
         try:
             actual_published_at = fetch_actual_published_at(item.url)

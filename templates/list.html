@@ -254,6 +254,27 @@
       margin-bottom: 14px;
     }
 
+    .child-list {
+      margin: 10px 0 14px 0;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+    }
+
+    .child-title {
+      font-size: 13px;
+      color: #475569;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .child-item {
+      font-size: 13px;
+      color: #334155;
+      margin-bottom: 4px;
+    }
+
     .detail-link {
       display: inline-block;
       text-decoration: none;
@@ -419,9 +440,24 @@
                       <span class="badge country">{{ item.event_country }}</span>
                       <span class="meta-text">{{ item.source_name }}</span>
                       <span class="meta-text">{{ item.published_at }}</span>
+                      {% if item.event_period %}
+                      <span class="meta-text">開催期間: {{ item.event_period }}</span>
+                      {% endif %}
                     </div>
 
                     <div class="summary-text">{{ item.display_summary }}</div>
+
+                    {% if item.child_events %}
+                    <div class="child-list">
+                      <div class="child-title">内包展示会</div>
+                      {% for child in item.child_events %}
+                      <div class="child-item">
+                        {{ child.title }}
+                        {% if child.event_period %} / {{ child.event_period }}{% endif %}
+                      </div>
+                      {% endfor %}
+                    </div>
+                    {% endif %}
 
                     <a class="detail-link" href="/raw/{{ item.id }}">詳細を見る</a>
                   </div>
@@ -437,9 +473,24 @@
                   <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
                   <span class="meta-text">{{ item.source_name }}</span>
                   <span class="meta-text">{{ item.published_at }}</span>
+                  {% if item.event_period %}
+                  <span class="meta-text">開催期間: {{ item.event_period }}</span>
+                  {% endif %}
                 </div>
 
                 <div class="summary-text">{{ item.display_summary }}</div>
+
+                {% if item.child_events %}
+                <div class="child-list">
+                  <div class="child-title">内包展示会</div>
+                  {% for child in item.child_events %}
+                  <div class="child-item">
+                    {{ child.title }}
+                    {% if child.event_period %} / {{ child.event_period }}{% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
 
                 <a class="detail-link" href="/raw/{{ item.id }}">詳細を見る</a>
               </div>

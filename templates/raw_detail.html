@@ -28,6 +28,12 @@
     <p><b>ソース名:</b> {{ item.source_name }}</p>
     <p><b>種別:</b> {{ item.source_type }}</p>
     <p><b>公開日:</b> {{ item.published_at }}</p>
+    {% if item.event_period %}
+    <p><b>開催期間:</b> {{ item.event_period }}</p>
+    {% endif %}
+    {% if item.event_location %}
+    <p><b>会場:</b> {{ item.event_location }}</p>
+    {% endif %}
     {% if item.actual_published_at %}
     <p><b>記事の公開日:</b> {{ item.actual_published_at }}</p>
     {% endif %}
@@ -45,6 +51,20 @@
     <h3>raw_summary</h3>
     <p>{{ item.raw_summary }}</p>
   </div>
+
+  {% if item.child_events %}
+  <div class="box">
+    <h3>内包展示会</h3>
+    {% for child in item.child_events %}
+    <p>
+      <b>{{ child.title }}</b>
+      {% if child.event_period %}<br>開催期間: {{ child.event_period }}{% endif %}
+      {% if child.event_location %}<br>会場: {{ child.event_location }}{% endif %}
+      <br>URL: <a href="{{ child.url }}" target="_blank">{{ child.url }}</a>
+    </p>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <div class="box">
     <h3>raw_text</h3>
