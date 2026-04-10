@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 import time
+from datetime import date
 from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
@@ -47,6 +48,10 @@ DEFAULT_QUERIES = [
     "Manufacturing World Physical AI Expo Japan",
     "Japan IT Week AI Expo Japan",
     "CEATEC AI robotics Japan",
+    "TECHNO-FRONTIER 工場の搬送と協働ロボット展",
+    "日本能率協会 ロボット 展示会",
+    "ROBOT TECHNOLOGY JAPAN 2026",
+    "Japan Robot Week official robotics exhibition Japan",
     "AI博覧会 東京国際フォーラム",
     "Vision AI Expo 幕張メッセ",
     "画像認識 AI Expo 幕張メッセ",
@@ -54,19 +59,23 @@ DEFAULT_QUERIES = [
 
 JAPAN_EVENT_SEED_URLS = [
     "https://irex.nikkan.co.jp/",
+    "https://biz.nikkan.co.jp/eve/s-robot/",
     "https://www.manufacturing-world.jp/hub/en-gb.html",
     "https://www.manufacturing-world.jp/hub/ja-jp.html",
     "https://www.fiweek.jp/hub/en-gb/about/robodex.html",
     "https://www.fiweek.jp/hub/ja-jp/about/robodex.html",
     "https://www.nextech-week.jp/hub/en-gb.html",
     "https://www.nextech-week.jp/hub/ja-jp.html",
-    "https://www.expo2025.or.jp/en/future-index/smart-mobility/robot/",
     "https://www.japan-it.jp/",
     "https://www.japan-it.jp/hub/ja-jp/about/itweek.html",
     "https://www.ceatec.com/",
+    "https://tf.jma.or.jp/",
+    "https://tf.jma.or.jp/outline/robot.html",
     "https://aismiley.co.jp/ai_hakurankai/",
     "https://aismiley.co.jp/ai_hakurankai/spring-2026/",
     "https://vision-ai-expo.jp/",
+    "https://robot-technology.jp/",
+    "https://robot-technology.jp/about/",
 ]
 
 POSITIVE_KEYWORDS = [
@@ -143,15 +152,18 @@ SECONDARY_EVENT_HINTS = [
 
 TRUSTED_EVENT_DOMAINS = {
     "irex.nikkan.co.jp",
+    "biz.nikkan.co.jp",
     "www.manufacturing-world.jp",
     "www.fiweek.jp",
     "www.nextech-week.jp",
-    "www.expo2025.or.jp",
     "www.japan-it.jp",
     "www.ceatec.com",
     "ceatec.com",
+    "tf.jma.or.jp",
     "aismiley.co.jp",
     "vision-ai-expo.jp",
+    "robot-technology.jp",
+    "www.robot-technology.jp",
     "humanoidssummit.com",
     "2026.ieee-humanoids.org",
     "www.roboticssummit.com",
@@ -168,6 +180,40 @@ AGGREGATOR_DOMAINS = {
     "robohorizon.com",
     "automationexpo.com",
 }
+
+EXHIBITOR_PAGE_KEYWORDS = [
+    "出展します",
+    "出展いたします",
+    "出展のお知らせ",
+    "出展案内",
+    "ブース出展",
+    "ブース",
+    "展示ブース",
+    "小間",
+    "booth no",
+    "booth number",
+    "our booth",
+    "visit us at",
+    "sponsor",
+    "partner",
+    "booth",
+    "company_news",
+    "pressrelease",
+    "プレスリリース",
+    "開催速報",
+    "レポート",
+    "blog",
+    "note.com",
+]
+
+EXHIBITOR_URL_KEYWORDS = [
+    "/exhibitor",
+    "/company_news/",
+    "/news/",
+    "/blog/",
+    "/reports/",
+    "/report/",
+]
 
 MONTH_PATTERN = (
     r"January|February|March|April|May|June|July|August|September|October|November|December|"
@@ -236,19 +282,16 @@ class ExhibitionCrawler:
         domain = urlparse(result.url).netloc.lower()
         if any(bad in blob for bad in NEGATIVE_KEYWORDS):
             return False
-        if domain in TRUSTED_EVENT_DOMAINS:
-            return True
+        if not self.is_official_event_domain(domain):
+            return False
 
         positive_match = any(good in blob for good in POSITIVE_KEYWORDS)
         secondary_match = any(hint in blob for hint in SECONDARY_EVENT_HINTS)
         if not positive_match:
             return False
-
-        # Aggregator/news pages should only pass if they look strongly event-specific.
-        if domain in AGGREGATOR_DOMAINS:
-            return secondary_match or "japan" in blob or "tokyo" in blob or "2026" in blob or "2027" in blob
-
-        return positive_match and (secondary_match or "2026" in blob or "2027" in blob or "2025" in blob)
+        if self.looks_like_exhibitor_page(result.url, result.title, result.snippet):
+            return False
+        return positive_match and (secondary_match or "2026" in blob or "2027" in blob)
 
     def fetch_html(self, url: str) -> Optional[str]:
         try:
@@ -261,6 +304,34 @@ class ExhibitionCrawler:
         except requests.RequestException as exc:
             print(f"[WARN] fetch failed: url={url} error={exc}")
             return None
+
+    def is_official_event_domain(self, domain: str) -> bool:
+        domain = (domain or "").lower()
+        return domain in TRUSTED_EVENT_DOMAINS
+
+    def looks_like_exhibitor_page(self, url: str, *texts: str) -> bool:
+        lower_url = (url or "").lower()
+        if any(keyword in lower_url for keyword in EXHIBITOR_URL_KEYWORDS):
+            return True
+
+        blob = " ".join(texts).lower()
+        if any(keyword in blob for keyword in EXHIBITOR_PAGE_KEYWORDS):
+            if "公式" in blob or "official website" in blob or "official site" in blob:
+                return False
+            return True
+        return False
+
+    def is_upcoming_event(self, start_date: Optional[str], end_date: Optional[str]) -> bool:
+        target = end_date or start_date
+        parsed = self.parse_date(target) if target and "/" in target else None
+        if not parsed and target:
+            parsed = target
+        if not parsed:
+            return False
+        try:
+            return parsed >= date.today().isoformat()
+        except Exception:
+            return False
 
     def extract_title(self, soup: BeautifulSoup) -> str:
         for selector in ["meta[property='og:title']", "title", "h1"]:
@@ -314,10 +385,11 @@ class ExhibitionCrawler:
 
     def extract_date_range(self, text: str) -> tuple[Optional[str], Optional[str]]:
         text = text.replace("–", "-")
-        text = text.replace("〜", "-").replace("～", "-")
+        text = text.replace("〜", "-").replace("～", "-").replace("~", "-")
 
         compact_patterns = [
             r"(会期[:：]\s*20\d{2}年\d{1,2}月\d{1,2}日\s*(?:\([^)]*\))?\s*-\s*\d{1,2}日\s*(?:\([^)]*\))?)",
+            r"(20\d{2}年(?:(?:\([^)]*\))|(?:（[^）]+）))?\d{1,2}月\d{1,2}日\s*(?:\([^)]*\))?\s*-\s*\d{1,2}月\d{1,2}日\s*(?:\([^)]*\))?)",
             r"(\d{1,2}\.\d{1,2}\s*(?:\([^)]*\))?\s*-\s*\d{1,2}\.\d{1,2}\s*(?:\([^)]*\))?)",
             r"(\d{1,2}/\d{1,2}\s*-\s*\d{1,2})",
             r"((?:20)?\d{2}/\d{1,2}/\d{1,2}\s*-\s*\d{1,2})",
@@ -337,6 +409,14 @@ class ExhibitionCrawler:
                 return (
                     self.parse_date(f"{year}年{month}月{d1}日"),
                     self.parse_date(f"{year}年{month}月{d2}日"),
+                )
+
+            m = re.match(r"(20\d{2})年(?:(?:\([^)]*\))|(?:（[^）]+）))?(\d{1,2})月(\d{1,2})日(?:\([^)]*\))?\s*-\s*(\d{1,2})月(\d{1,2})日(?:\([^)]*\))?", raw)
+            if m:
+                year, month1, d1, month2, d2 = m.groups()
+                return (
+                    self.parse_date(f"{year}年{month1}月{d1}日"),
+                    self.parse_date(f"{year}年{month2}月{d2}日"),
                 )
 
             m = re.match(r"(\d{1,2})\.(\d{1,2})\s*(?:\([^)]*\))?\s*-\s*(\d{1,2})\.(\d{1,2})\s*(?:\([^)]*\))?", raw)
@@ -435,6 +515,24 @@ class ExhibitionCrawler:
                 return normalize_text(match.group(1), max_length=120)
         return ""
 
+    def normalize_event_title(self, title: str, summary: str, page_text: str) -> str:
+        normalized_title = normalize_text(title, max_length=500)
+        if normalized_title and normalized_title.lower() not in {"about", "top", "本展について"}:
+            return normalized_title
+
+        if "ロボットテクノロジージャパン" in page_text:
+            year_match = re.search(r"ロボットテクノロジージャパン\s*(20\d{2})", page_text)
+            if year_match:
+                return f"ロボットテクノロジージャパン{year_match.group(1)} (RTJ{year_match.group(1)})"
+            return "ロボットテクノロジージャパン (RTJ)"
+
+        for source_text in [summary, page_text[:500]]:
+            quoted = re.search(r"[「\"]([^\"\n]{6,100})[」\"]", source_text)
+            if quoted:
+                return normalize_text(quoted.group(1), max_length=500)
+
+        return normalized_title or normalize_text(summary, max_length=120) or "展示会公式サイト"
+
     def crawl_seed_urls(self, urls: list[str]) -> tuple[int, int]:
         inserted = 0
         skipped = 0
@@ -470,19 +568,19 @@ class ExhibitionCrawler:
         page_text = normalize_text(soup.get_text(" ", strip=True), max_length=50000)
         title = self.extract_title(soup) or result.title
         summary = self.extract_summary(soup) or result.snippet or result.title
+        title = self.normalize_event_title(title, summary, page_text)
         start_date, end_date = self.extract_date_range(page_text)
         location = self.extract_location(page_text)
         organizer = self.extract_organizer(page_text)
-        domain = urlparse(result.url).netloc
+        domain = urlparse(result.url).netloc.lower()
 
-        if domain.lower() in AGGREGATOR_DOMAINS and not (
-            "japan" in page_text.lower()
-            or "tokyo" in page_text.lower()
-            or "osaka" in page_text.lower()
-            or "日本" in page_text
-            or "東京" in page_text
-            or "大阪" in page_text
-        ):
+        if not self.is_official_event_domain(domain):
+            return None
+
+        if self.looks_like_exhibitor_page(result.url, title, summary):
+            return None
+
+        if not self.is_upcoming_event(start_date, end_date):
             return None
 
         raw_payload = {
