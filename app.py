@@ -26,6 +26,9 @@ def ensure_schema() -> None:
     if "actual_published_at" not in existing_columns:
         db.session.execute(text("ALTER TABLE raw_items ADD COLUMN actual_published_at VARCHAR(100)"))
         db.session.commit()
+    if "crawl_batch_id" not in existing_columns:
+        db.session.execute(text("ALTER TABLE raw_items ADD COLUMN crawl_batch_id VARCHAR(100)"))
+        db.session.commit()
 
 
 with app.app_context():
@@ -42,6 +45,18 @@ def clean_summary(text: Optional[str], max_length: int = 160) -> str:
     if len(plain) > max_length:
         return plain[:max_length] + "..."
     return plain
+
+
+def get_latest_crawl_batch_id() -> str:
+    latest_item = (
+        RawItem.query
+        .filter(RawItem.crawl_batch_id.isnot(None), RawItem.crawl_batch_id != "")
+        .order_by(RawItem.fetched_at.desc(), RawItem.id.desc())
+        .first()
+    )
+    if not latest_item:
+        return ""
+    return latest_item.crawl_batch_id or ""
 
 
 def dates_match(left: Optional[str], right: Optional[str]) -> bool:
@@ -221,6 +236,60 @@ def build_event_country_shortcuts(
             "label": group["country"],
             "count": len(group["items"]),
             "active": selected_country == group["country"],
+            "href": "/?" + urlencode(params),
+        })
+    return shortcuts
+
+
+def extract_news_category(item: RawItem) -> str:
+    if item.source_type != "news":
+        return ""
+
+    source_name = (item.source_name or "").strip()
+    if source_name.startswith("Google News / Physical AI"):
+        return "Physical AI"
+    if source_name.startswith("Google News / Robot Makers"):
+        return "Robot Makers"
+    if source_name.startswith("Google News / Real Haptics"):
+        return "Real Haptics"
+    if source_name.startswith("Startup /"):
+        return "Startup"
+    if source_name.startswith("Google News /"):
+        return "Google News"
+    return "その他"
+
+
+def build_news_category_groups(items: list[RawItem]) -> list[dict]:
+    groups: dict[str, list[RawItem]] = {}
+    for item in items:
+        category = extract_news_category(item)
+        item.news_category = category
+        groups.setdefault(category, []).append(item)
+
+    ordered_categories = sorted(
+        groups.keys(),
+        key=lambda name: (name == "その他", name),
+    )
+    return [{"category": category, "items": groups[category]} for category in ordered_categories]
+
+
+def build_news_category_shortcuts(selected_category: str, groups: list[dict], args) -> list[dict]:
+    if not groups:
+        return []
+
+    base_params = []
+    for key in ["q", "source_name", "sort", "order"]:
+        value = (args.get(key) or "").strip()
+        if value:
+            base_params.append((key, value))
+
+    shortcuts = []
+    for group in groups:
+        params = base_params + [("source_type", "news"), ("news_category", group["category"])]
+        shortcuts.append({
+            "label": group["category"],
+            "count": len(group["items"]),
+            "active": selected_category == group["category"],
             "href": "/?" + urlencode(params),
         })
     return shortcuts
@@ -485,8 +554,10 @@ def list_raw_items():
     source_name = request.args.get("source_name", "").strip()
     source_type = request.args.get("source_type", "").strip()
     event_country = request.args.get("event_country", "").strip()
+    news_category = request.args.get("news_category", "").strip()
     sort = request.args.get("sort", "published_at").strip()
     order = request.args.get("order", "desc").strip()
+    latest_crawl_batch_id = get_latest_crawl_batch_id()
 
     query = RawItem.query
 
@@ -509,6 +580,11 @@ def list_raw_items():
     event_preview_groups = build_event_groups(event_preview_items) if event_preview_items else []
     event_country_shortcuts = build_event_country_shortcuts(event_country, event_preview_groups, request.args)
 
+    news_preview_query = query.filter(RawItem.source_type == "news")
+    news_preview_items = news_preview_query.all()
+    news_category_groups = build_news_category_groups(news_preview_items) if news_preview_items else []
+    news_category_shortcuts = build_news_category_shortcuts(news_category, news_category_groups, request.args)
+
     if source_type:
         query = query.filter(RawItem.source_type == source_type)
 
@@ -521,34 +597,42 @@ def list_raw_items():
     }
 
     sort_column = sortable_columns.get(sort, RawItem.published_at)
+    new_priority = case((RawItem.crawl_batch_id == latest_crawl_batch_id, 0), else_=1)
 
     if sort == "published_at":
         published_is_empty = case((RawItem.published_at.is_(None), 1), (RawItem.published_at == "", 1), else_=0)
         if order == "asc":
             query = query.order_by(
+                new_priority.asc(),
                 published_is_empty.asc(),
                 RawItem.published_at.asc(),
                 RawItem.fetched_at.asc(),
             )
         else:
             query = query.order_by(
+                new_priority.asc(),
                 published_is_empty.asc(),
                 RawItem.published_at.desc(),
                 RawItem.fetched_at.desc(),
             )
     elif order == "asc":
-        query = query.order_by(sort_column.asc())
+        query = query.order_by(new_priority.asc(), sort_column.asc(), RawItem.fetched_at.desc())
     else:
-        query = query.order_by(sort_column.desc())
+        query = query.order_by(new_priority.asc(), sort_column.desc(), RawItem.fetched_at.desc())
 
     items = query.all()
     if items and all(item.source_type == "event" for item in items):
         items = dedupe_event_items(items)
         items = attach_event_hierarchy(items, q)
+    elif items and all(item.source_type == "news" for item in items):
+        news_groups = build_news_category_groups(items)
+        if news_category:
+            items = [item for group in news_groups if group["category"] == news_category for item in group["items"]]
 
     for item in items:
         item.display_summary = clean_summary(item.raw_summary)
         enrich_event_fields(item)
+        item.is_new = bool(latest_crawl_batch_id and item.crawl_batch_id == latest_crawl_batch_id)
 
     event_groups: list[dict] = []
     event_country_tabs: list[dict] = []
@@ -594,6 +678,7 @@ def list_raw_items():
         current_source_name=source_name,
         current_source_type=source_type,
         current_event_country=event_country,
+        current_news_category=news_category,
         current_sort=sort,
         current_order=order,
         total_count=total_count,
@@ -602,6 +687,8 @@ def list_raw_items():
         event_country_tabs=event_country_tabs,
         available_event_countries=available_event_countries,
         event_country_shortcuts=event_country_shortcuts,
+        news_category_shortcuts=news_category_shortcuts,
+        available_news_categories=[group["category"] for group in news_category_groups],
     )
 
 
@@ -609,6 +696,8 @@ def list_raw_items():
 def raw_detail(item_id):
     item = RawItem.query.get_or_404(item_id)
     enrich_event_fields(item)
+    latest_crawl_batch_id = get_latest_crawl_batch_id()
+    item.is_new = bool(latest_crawl_batch_id and item.crawl_batch_id == latest_crawl_batch_id)
     if item.source_type == "event":
         parent_key = build_event_parent_key(item)
         sibling_items = RawItem.query.filter(RawItem.source_type == "event").all()

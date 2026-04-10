@@ -23,6 +23,9 @@
 </head>
 <body>
   <h1>{{ item.title }}</h1>
+  {% if item.is_new %}
+  <p><b>新着:</b> 今回のクローラ実行で取得</p>
+  {% endif %}
 
   <div class="box">
     <p><b>ソース名:</b> {{ item.source_name }}</p>

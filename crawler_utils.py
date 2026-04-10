@@ -1,11 +1,21 @@
 import re
 import unicodedata
+import os
+from functools import lru_cache
 from datetime import datetime, timedelta
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from typing import Optional
 
 from models import db, RawItem
+
+
+@lru_cache(maxsize=1)
+def get_current_crawl_batch_id() -> str:
+    env_batch_id = normalize_text(os.environ.get("CRAWL_BATCH_ID"), max_length=100)
+    if env_batch_id:
+        return env_batch_id
+    return datetime.utcnow().strftime("manual-%Y%m%d%H%M%S")
 
 def parse_date_safe(date_str: Optional[str]) -> Optional[datetime]:
     if not date_str:
@@ -106,6 +116,7 @@ def save_raw_item(data: dict) -> bool:
     source_type = normalize_text(data.get("source_type"), max_length=100)
     published_at = normalize_text(data.get("published_at"), max_length=100) or None
     actual_published_at = normalize_text(data.get("actual_published_at"), max_length=100) or None
+    crawl_batch_id = normalize_text(data.get("crawl_batch_id"), max_length=100) or get_current_crawl_batch_id()
     raw_summary = normalize_text(data.get("raw_summary"), max_length=2000) or None
     raw_text = data.get("raw_text")
 
@@ -143,6 +154,7 @@ def save_raw_item(data: dict) -> bool:
         url=canonical_url,
         published_at=published_at,
         actual_published_at=actual_published_at,
+        crawl_batch_id=crawl_batch_id,
         raw_summary=raw_summary,
         raw_text=raw_text,
     )

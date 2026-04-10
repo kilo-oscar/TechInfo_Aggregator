@@ -244,10 +244,29 @@ http://127.0.0.1:5000
 - キーワード検索
 - `source_name` での絞り込み
 - `source_type` での絞り込み
+- 最新クローラ実行で取得した記事の `NEW` 表示
 - `published_at` / `fetched_at` などでの並び替え
 - 各レコードの詳細表示
 
+上部の集計カードからもナビゲーションできます。
+
+- `イベント` カード: 国別ナビゲーションをホバーまたはクリックで表示
+- `ニュース` カード: 小カテゴリナビゲーションをホバーまたはクリックで表示
+
+`source_type=event` のときは、`ニュース` 一覧と別に開催国で絞り込めます。
+
+`source_type=news` のときは、次のような小分類で絞り込めます。
+
+- `Physical AI`
+- `Robot Makers`
+- `Real Haptics`
+- `Startup`
+- `Google News`
+- `その他`
+
 詳細画面では、`raw_summary` と `raw_text` の保存内容を確認できます。
+
+記事詳細では、保存済みの公開日とは別に、実際のページから取得した公開日も確認できます。両者がずれている場合は警告表示されます。
 
 ## 8. よく使う一連のコマンド
 
@@ -301,6 +320,8 @@ chmod +x run_daily_crwalers.sh
 - `crawlers.government_policy_crawler`
 - `cleanup_raw_item_duplicates.py`
 - `send_new_items_gmail.py`
+
+このとき 1 回の実行全体に同じ `crawl_batch_id` が付きます。UI の `NEW` ラベルは、この最新 `crawl_batch_id` に属する記事に対して付きます。
 
 ログ出力先:
 
@@ -447,6 +468,16 @@ http://127.0.0.1:5000
 - 少し時間をおいて再実行する
 - まず単体クローラで試す
 - `logs/daily_crawlers.log` を確認する
+
+### Google News にノイズ記事が混ざる
+
+`Google News / Robot Makers` では、`UR` を `Universal Robots` の意味で集めています。`UR都市機構` や `URBAN RESEARCH` のような曖昧一致は除外するように調整済みです。
+
+ノイズが残る場合は、まず次を単体で再実行してください。
+
+```bash
+python3 -m crawlers.google_news_crawler
+```
 
 ### `403 Forbidden` や `429 Too Many Requests` が出る
 

@@ -11,6 +11,8 @@ cd "$PROJECT_DIR"
 
 echo "===== $(date '+%Y-%m-%d %H:%M:%S') START =====" >> "$LOG_FILE"
 
+export CRAWL_BATCH_ID="daily-$(date '+%Y%m%d%H%M%S')"
+
 # 対話シェル経由で bashrc を読み込み、Gmail 用の環境変数だけ取り込む
 if [ -f "$HOME/.bashrc" ]; then
   eval "$(bash -ic 'declare -px GMAIL_SENDER GMAIL_APP_PASSWORD GMAIL_RECIPIENT 2>/dev/null | sed "s/^declare -x /export /"' 2>/dev/null)"

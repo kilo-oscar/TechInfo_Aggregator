@@ -38,7 +38,7 @@
       padding: 16px;
     }
 
-    .summary-card.event-card {
+    .summary-card.nav-card {
       cursor: pointer;
     }
 
@@ -70,9 +70,9 @@
       z-index: 20;
     }
 
-    .event-card.open .event-nav-popover,
-    .event-card:hover .event-nav-popover,
-    .event-card:focus-within .event-nav-popover {
+    .nav-card.open .event-nav-popover,
+    .nav-card:hover .event-nav-popover,
+    .nav-card:focus-within .event-nav-popover {
       opacity: 1;
       visibility: visible;
       transform: translateY(0);
@@ -246,6 +246,9 @@
     .badge.country {
       background: #0f766e;
     }
+    .badge.new {
+      background: #dc2626;
+    }
     .badge.sns_post { background: #db2777; }
 
     .summary-text {
@@ -319,15 +322,28 @@
         <div class="label">論文</div>
         <div class="value">{{ type_counts.get("paper", 0) }}</div>
       </div>
-      <div class="summary-card">
+      <div class="summary-card nav-card" tabindex="0" aria-expanded="false">
         <div class="label">ニュース</div>
         <div class="value">{{ type_counts.get("news", 0) }}</div>
+        {% if news_category_shortcuts %}
+          <div class="event-nav-popover">
+            <div class="event-nav-title">小カテゴリでニュース表示</div>
+            <div class="event-nav-list">
+              {% for tab in news_category_shortcuts %}
+                <a class="event-nav-link" href="{{ tab.href }}">
+                  {{ tab.label }} ({{ tab.count }})
+                </a>
+              {% endfor %}
+            </div>
+            <div class="event-nav-note">ニュースカードをクリックすると固定表示されます。</div>
+          </div>
+        {% endif %}
       </div>
       <div class="summary-card">
         <div class="label">GitHub</div>
         <div class="value">{{ type_counts.get("github", 0) }}</div>
       </div>
-      <div class="summary-card event-card" tabindex="0" aria-expanded="false">
+      <div class="summary-card nav-card event-card" tabindex="0" aria-expanded="false">
         <div class="label">イベント</div>
         <div class="value">{{ type_counts.get("event", 0) }}</div>
         {% if event_country_shortcuts %}
@@ -393,6 +409,20 @@
           </div>
           {% endif %}
 
+          {% if current_source_type == "news" %}
+          <div class="field">
+            <label for="news_category">ニュース小分類</label>
+            <select name="news_category" id="news_category">
+              <option value="">すべて</option>
+              {% for category in available_news_categories %}
+                <option value="{{ category }}" {% if current_news_category == category %}selected{% endif %}>
+                  {{ category }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
           <div class="field">
             <label for="sort">並び替え項目</label>
             <select name="sort" id="sort">
@@ -437,6 +467,9 @@
 
                     <div class="meta-row">
                       <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
+                      {% if item.is_new %}
+                      <span class="badge new">NEW</span>
+                      {% endif %}
                       <span class="badge country">{{ item.event_country }}</span>
                       <span class="meta-text">{{ item.source_name }}</span>
                       <span class="meta-text">{{ item.published_at }}</span>
@@ -471,6 +504,9 @@
 
                 <div class="meta-row">
                   <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
+                  {% if item.is_new %}
+                  <span class="badge new">NEW</span>
+                  {% endif %}
                   <span class="meta-text">{{ item.source_name }}</span>
                   <span class="meta-text">{{ item.published_at }}</span>
                   {% if item.event_period %}
@@ -504,27 +540,37 @@
   </div>
   <script>
     (() => {
-      const eventCard = document.querySelector('.event-card');
-      if (!eventCard) return;
+      const navCards = document.querySelectorAll('.nav-card');
+      if (!navCards.length) return;
 
       const isLinkClick = (target) => !!target.closest('.event-nav-link');
+      const closeAll = () => {
+        navCards.forEach((card) => {
+          card.classList.remove('open');
+          card.setAttribute('aria-expanded', 'false');
+        });
+      };
 
-      eventCard.addEventListener('click', (event) => {
-        if (isLinkClick(event.target)) return;
-        const isOpen = eventCard.classList.toggle('open');
-        eventCard.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      navCards.forEach((card) => {
+        card.addEventListener('click', (event) => {
+          if (isLinkClick(event.target)) return;
+          const shouldOpen = !card.classList.contains('open');
+          closeAll();
+          if (shouldOpen) {
+            card.classList.add('open');
+            card.setAttribute('aria-expanded', 'true');
+          }
+        });
       });
 
       document.addEventListener('click', (event) => {
-        if (eventCard.contains(event.target)) return;
-        eventCard.classList.remove('open');
-        eventCard.setAttribute('aria-expanded', 'false');
+        if ([...navCards].some((card) => card.contains(event.target))) return;
+        closeAll();
       });
 
       document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
-        eventCard.classList.remove('open');
-        eventCard.setAttribute('aria-expanded', 'false');
+        closeAll();
       });
     })();
   </script>
