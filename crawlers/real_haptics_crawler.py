@@ -1,4 +1,5 @@
 import json
+import re
 import urllib.parse
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
@@ -107,6 +108,7 @@ def enrich_official_item(item: dict) -> dict:
         "title": normalize_text(item.get("title", ""), max_length=500),
         "url": item.get("url", ""),
         "published_at": item.get("published_at", ""),
+        "actual_published_at": item.get("actual_published_at", ""),
         "raw_summary": normalize_text(item.get("raw_summary", ""), max_length=2000),
         "raw_text": json.dumps({
             "kind": "real_haptics_official",
@@ -136,12 +138,64 @@ def fetch_official_items() -> list[dict]:
     return list(unique.values())
 
 
-def extract_page_summary(url: str) -> str:
+def _normalize_page_date(value: str) -> str:
+    text = normalize_text(value, max_length=100)
+    if not text:
+        return ""
+
+    for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%Y年%m月%d日 %H時%M分", "%Y年%m月%d日"):
+        try:
+            return parsedate_to_datetime(text).strftime("%Y-%m-%d")
+        except Exception:
+            pass
+        try:
+            from datetime import datetime
+            return datetime.strptime(text, pattern).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    match = re.search(r"(20\d{2})[/-年](\d{1,2})[/-月](\d{1,2})", text)
+    if match:
+        yyyy, mm, dd = match.groups()
+        return f"{int(yyyy):04d}-{int(mm):02d}-{int(dd):02d}"
+    return ""
+
+
+def extract_page_details(url: str) -> tuple[str, str]:
     try:
         html = fetch_html(url)
     except Exception:
-        return ""
+        return "", ""
+
     soup = BeautifulSoup(html, "html.parser")
+
+    for selector, attr in [
+        ("meta[property='article:published_time']", "content"),
+        ("meta[name='publish_date']", "content"),
+        ("meta[name='pubdate']", "content"),
+        ("meta[name='date']", "content"),
+    ]:
+        node = soup.select_one(selector)
+        if not node:
+            continue
+        published_at = _normalize_page_date(node.get(attr, ""))
+        if published_at:
+            break
+    else:
+        published_at = ""
+
+    if not published_at:
+        for pattern in [
+            r'"datePublished"\s*:\s*"([^"]+)"',
+            r'"releaseCompleDate"\s*:\s*"([^"]+)"',
+        ]:
+            match = re.search(pattern, html)
+            if not match:
+                continue
+            published_at = _normalize_page_date(match.group(1))
+            if published_at:
+                break
+
     for selector in [
         "meta[name='description']",
         "meta[property='og:description']",
@@ -158,8 +212,8 @@ def extract_page_summary(url: str) -> str:
             text = node.get_text(" ", strip=True)
         text = normalize_text(text, max_length=1200)
         if len(text) >= 30:
-            return text
-    return ""
+            return text, published_at
+    return "", published_at
 
 
 def main() -> None:
@@ -177,8 +231,12 @@ def main() -> None:
         old_skipped = 0
 
         for item in official_items:
+            page_summary, page_published_at = extract_page_details(item["url"])
             if not item.get("raw_summary"):
-                item["raw_summary"] = extract_page_summary(item["url"])
+                item["raw_summary"] = page_summary
+            if page_published_at:
+                item["published_at"] = page_published_at
+                item["actual_published_at"] = page_published_at
             if item["url"] and save_raw_item(item):
                 inserted += 1
             else:

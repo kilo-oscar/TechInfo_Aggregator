@@ -105,11 +105,18 @@ def save_raw_item(data: dict) -> bool:
     source_name = normalize_text(data.get("source_name"), max_length=200)
     source_type = normalize_text(data.get("source_type"), max_length=100)
     published_at = normalize_text(data.get("published_at"), max_length=100) or None
+    actual_published_at = normalize_text(data.get("actual_published_at"), max_length=100) or None
     raw_summary = normalize_text(data.get("raw_summary"), max_length=2000) or None
     raw_text = data.get("raw_text")
 
     existing = RawItem.query.filter_by(url=canonical_url).first()
     if existing:
+        changed = False
+        if actual_published_at and existing.actual_published_at != actual_published_at:
+            existing.actual_published_at = actual_published_at
+            changed = True
+        if changed:
+            db.session.commit()
         return False
 
     duplicate_query = RawItem.query.filter(
@@ -119,7 +126,14 @@ def save_raw_item(data: dict) -> bool:
     if published_at:
         duplicate_query = duplicate_query.filter(RawItem.published_at == published_at)
 
-    if duplicate_query.first():
+    duplicate_item = duplicate_query.first()
+    if duplicate_item:
+        changed = False
+        if actual_published_at and duplicate_item.actual_published_at != actual_published_at:
+            duplicate_item.actual_published_at = actual_published_at
+            changed = True
+        if changed:
+            db.session.commit()
         return False
 
     item = RawItem(
@@ -128,6 +142,7 @@ def save_raw_item(data: dict) -> bool:
         title=title,
         url=canonical_url,
         published_at=published_at,
+        actual_published_at=actual_published_at,
         raw_summary=raw_summary,
         raw_text=raw_text,
     )

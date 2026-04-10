@@ -11,6 +11,10 @@
       padding: 16px;
       margin-bottom: 16px;
     }
+    .mismatch {
+      background: #fff7ed;
+      border-color: #fdba74;
+    }
     pre {
       white-space: pre-wrap;
       word-break: break-word;
@@ -24,9 +28,18 @@
     <p><b>ソース名:</b> {{ item.source_name }}</p>
     <p><b>種別:</b> {{ item.source_type }}</p>
     <p><b>公開日:</b> {{ item.published_at }}</p>
+    {% if item.actual_published_at %}
+    <p><b>記事の公開日:</b> {{ item.actual_published_at }}</p>
+    {% endif %}
     <p><b>URL:</b> <a href="{{ item.url }}" target="_blank">{{ item.url }}</a></p>
     <p><b>取得日:</b> {{ item.fetched_at }}</p>
   </div>
+
+  {% if item.date_mismatch %}
+  <div class="box mismatch">
+    <p><b>公開日ずれ:</b> 保存済みの公開日と、記事ページから取得した公開日が一致していません。</p>
+  </div>
+  {% endif %}
 
   <div class="box">
     <h3>raw_summary</h3>
