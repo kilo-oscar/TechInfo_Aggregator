@@ -30,6 +30,8 @@ class ThinkTankCrawlerConfig:
         allowed_domains: list[str],
         allowed_path_keywords: list[str] | None = None,
         extra_keywords: list[str] | None = None,
+        excluded_path_keywords: list[str] | None = None,
+        excluded_title_keywords: list[str] | None = None,
         source_type: str = "thinktank",
     ) -> None:
         self.source_name = source_name
@@ -37,6 +39,8 @@ class ThinkTankCrawlerConfig:
         self.allowed_domains = allowed_domains
         self.allowed_path_keywords = [kw.lower() for kw in (allowed_path_keywords or [])]
         self.extra_keywords = [kw.lower() for kw in (extra_keywords or [])]
+        self.excluded_path_keywords = [kw.lower() for kw in (excluded_path_keywords or [])]
+        self.excluded_title_keywords = [kw.lower() for kw in (excluded_title_keywords or [])]
         self.source_type = source_type
 
 
@@ -48,6 +52,15 @@ def _is_allowed_domain(url: str, allowed_domains: list[str]) -> bool:
 def _looks_like_relevant_thinktank_item(item: dict, config: ThinkTankCrawlerConfig) -> bool:
     url = item.get("url", "")
     if not url or not _is_allowed_domain(url, config.allowed_domains):
+        return False
+
+    path = urlparse(url).path.lower()
+    title = (item.get("title", "") or "").lower()
+
+    if config.excluded_path_keywords and any(keyword in path for keyword in config.excluded_path_keywords):
+        return False
+
+    if config.excluded_title_keywords and any(keyword in title for keyword in config.excluded_title_keywords):
         return False
 
     blob = " ".join([
@@ -63,7 +76,6 @@ def _looks_like_relevant_thinktank_item(item: dict, config: ThinkTankCrawlerConf
     if text_contains_keywords(blob):
         return True
 
-    path = urlparse(url).path.lower()
     if config.allowed_path_keywords and any(keyword in path for keyword in config.allowed_path_keywords):
         return True
 
