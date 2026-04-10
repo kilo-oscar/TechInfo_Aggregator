@@ -8,8 +8,9 @@ Physical AI / Robotics 関連の情報を収集して、Flask で一覧表示す
 2. 仮想環境に入る
 3. `requirements.txt` から必要なパッケージをインストールする
 4. クローラを実行してデータを収集する
-5. Flask アプリを起動する
-6. ブラウザで確認する
+5. クローラを実行してデータを収集する
+6. Flask アプリを起動する
+7. ブラウザで確認する
 
 ## 1. 前提
 
@@ -103,6 +104,12 @@ python3 -m crawlers.exhibition_crawler --queries "robotics exhibition" "physical
 
 ### 他のクローラ例
 
+リアルハプティクス専用クローラ:
+
+```bash
+python3 -m crawlers.real_haptics_crawler
+```
+
 Google News クローラ:
 
 ```bash
@@ -113,6 +120,29 @@ arXiv クローラ:
 
 ```bash
 python3 -m crawlers.arxiv_crawler
+```
+
+シンクタンク横断クローラ:
+
+```bash
+python3 -m crawlers.thinktank_crawler
+```
+
+個別シンクタンククローラ:
+
+```bash
+python3 -m crawlers.mri_crawler
+python3 -m crawlers.jri_crawler
+python3 -m crawlers.nri_crawler
+python3 -m crawlers.dir_crawler
+python3 -m crawlers.mizuho_rt_crawler
+python3 -m crawlers.murc_crawler
+```
+
+政府系政策クローラ:
+
+```bash
+python3 -m crawlers.government_policy_crawler
 ```
 
 ## 6. Flask アプリを起動する

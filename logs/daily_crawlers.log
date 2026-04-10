@@ -1,0 +1,72 @@
+===== 2026-04-10 10:15:14 START =====
+Python 3.10.12
+arXiv から取得: inserted=20, skipped=0, old_skipped=0
+Google News から取得: inserted=31, skipped=315, old_skipped=73
+[INFO] search query=physical AI exhibition
+[WARN] fetch failed: url=https://www.forbes.com/sites/ronschmelzer/2026/01/10/physical-ai-made-waves-at-ces-2026-what-is-it/ error=403 Client Error: Forbidden for url: https://www.forbes.com/sites/ronschmelzer/2026/01/10/physical-ai-made-waves-at-ces-2026-what-is-it/
+[SAVE] Imagry to Exhibit AI for the physical world at CES | Imagry News [2025-11-23]
+[INFO] search query=physical AI expo
+[WARN] fetch failed: url=https://www.ai-expo.net/northamerica/agenda/physical-ai/ error=403 Client Error: Forbidden for url: https://www.ai-expo.net/northamerica/agenda/physical-ai/
+[SAVE] AI & Big Data Expo North America AI EXPO on May 18-19, 2026 in San Jose, United States - Conference Index [2026-05-18]
+[SAVE] Physical AI Pavilion | HumanX Amsterdam | 22-24 Sept [2026-09-22]
+[INFO] search query=robotics exhibition
+[WARN] fetch failed: url=https://robotstradeshows.com/irex-2025-the-worlds-largest-robotics-showcase-returns-to-tokyo/ error=403 Client Error: Forbidden for url: https://robotstradeshows.com/irex-2025-the-worlds-largest-robotics-showcase-returns-to-tokyo/
+[SAVE] Hello! Robots | Miraikan – The National Museum of Emerging Science and Innovation
+[SAVE] High-tech humanoids shine at Tokyo’s 2025 International Robot Exhibition [2025-12-04]
+[WARN] fetch failed: url=https://humanoidtradeshow.com/international-robot-exhibition-2025-tokyos-global-stage-for-humanoid-robotics/ error=403 Client Error: Forbidden for url: https://humanoidtradeshow.com/international-robot-exhibition-2025-tokyos-global-stage-for-humanoid-robotics/
+[SAVE] IREX 2025 [2025-12-03]
+[INFO] search query=robotics trade show
+[SAVE] Robotics trade shows in USA
+[WARN] fetch failed: url=https://robotics-tradeshow.com/ error=403 Client Error: Forbidden for url: https://robotics-tradeshow.com/
+[WARN] fetch failed: url=https://www.automateshow.com/trade-show/show-schedule error=403 Client Error: Forbidden for url: https://www.automateshow.com/trade-show/show-schedule
+[WARN] fetch failed: url=https://robots-tradeshow.com/ error=403 Client Error: Forbidden for url: https://robots-tradeshow.com/
+[SAVE] Industrial Automation, Robots and Unmanned Vehicles Events | RoboticsTomorrow [2026-09-01]
+[INFO] search query=robotics expo
+[SAVE] RoboDEX 2027 (Tokyo) - Japan''s leading robotics technology exhibition -- showsbee.com [2027-02-17]
+[SAVE] 2026 Robot Development and Application Expo Japan(RoboDex Japan)
+[INFO] search query=industrial robotics exhibition
+[WARN] fetch failed: url=https://expoassist.net/product_group/industrial-robotics error=HTTPSConnectionPool(host='expoassist.net', port=443): Read timed out. (read timeout=20)
+[SAVE] Exhibition Invitation | SEER Robotics Invites You to iREX 2025 in Tokyo, Japan [2025-12-03]
+[WARN] fetch failed: url=https://www.automateshow.com/ error=403 Client Error: Forbidden for url: https://www.automateshow.com/
+[SAVE] IREX - International Robot Exhibition, Japan | www.AutomationExpo.com [2025-12-03]
+[WARN] fetch failed: url=https://10times.com/automation-robotics/tradeshows error=403 Client Error: Forbidden for url: https://10times.com/automation-robotics/tradeshows
+[INFO] search query=automation robotics expo
+[WARN] fetch failed: url=https://expotobi.com/country/japan/sector/automation-robotics/exhibitions error=403 Client Error: Forbidden for url: https://expotobi.com/country/japan/sector/automation-robotics/exhibitions
+[WARN] fetch failed: url=https://10times.com/automation-technology/tradeshows error=403 Client Error: Forbidden for url: https://10times.com/automation-technology/tradeshows
+[WARN] fetch failed: url=https://automa.net/blog/1330/guide-to-industrial-automation-trade-fairs error=403 Client Error: Forbidden for url: https://automa.net/blog/1330/guide-to-industrial-automation-trade-fairs
+[WARN] fetch failed: url=https://automationexpo.com/ error=HTTPSConnectionPool(host='automationexpo.com', port=443): Read timed out. (read timeout=20)
+[WARN] fetch failed: url=https://nenpower.com/blog/2026-shenzhen-international-automation-and-robotics-exhibition-a-gateway-to-advancements-in-industrial-manufacturing/ error=HTTPSConnectionPool(host='nenpower.com', port=443): Read timed out. (read timeout=20)
+[INFO] search query=embodied AI exhibition
+[SAVE] Embodied Intelligence Conference 2026 — Program [2026-03-18]
+[SAVE] Embodied AI Takes Center Stage at WAIC 2025 as Chinese AI and Robot Players Showcase Products-钛媒体官方网站
+[SAVE] Embodied Arena
+[WARN] fetch failed: url=https://www.eetasia.com/embeddednews-embodied-ai-takes-center-stage-at-aw-2026-humanoid-robots-moving-from-labs-to-real-world-systems/ error=HTTPSConnectionPool(host='www.eetasia.com', port=443): Read timed out. (read timeout=20)
+[SAVE] Embodied AI Takes Center Stage at WAIC 2025 as Chinese AI and Robot Players Showcase Products [2025-07-29]
+[SAVE] Empowering The World Through Embodied AI Workshop - Microsoft Research [2025-11-03]
+[INFO] search query=humanoid robot exhibition
+[SAVE] Top 5 Humanoid Robot Trade Shows 2026 - Qviro Blog [2026-01-06]
+[WARN] fetch failed: url=https://humanoidtradeshow.com/ error=403 Client Error: Forbidden for url: https://humanoidtradeshow.com/
+[SAVE] Humanoids 2026 - 2026 IEEE-RAS 25th International Conference on Humanoid Robots (Humanoids) [2026-12-07]
+[SAVE] Humanoid Robots Summit [2026-09-09]
+[SAVE] 2026 Shenzhen Artificial Intelligence Exhibition · Shenzhen Humanoid Robot Exhibition--COTV International [2026-04-09]
+[SAVE] 2026 China (Dongguan) International Humanoid Robot Application Exhibition--COTV International [2026-11-26]
+[INFO] search query=robotics summit expo
+[WARN] fetch failed: url=https://www.unmannedsystemstechnology.com/events/robotics-summit-expo/ error=403 Client Error: Forbidden for url: https://www.unmannedsystemstechnology.com/events/robotics-summit-expo/
+[WARN] fetch failed: url=https://www.therobotreport.com/registration-opens-for-robotics-summit-expo-2026/ error=403 Client Error: Forbidden for url: https://www.therobotreport.com/registration-opens-for-robotics-summit-expo-2026/
+[SAVE] Robotics Summit & Expo | ALVA Industries [2026-05-27]
+[WARN] fetch failed: url=https://www.jetro.go.jp/en/database/j-messe/tradefair/detail/158455 error=404 Client Error: Not Found for url: https://www.jetro.go.jp/en/database/j-messe/tradefair/detail/158455
+[SAVE] Exhibitor Listing | Robotics Summit & Expo
+[SAVE] Global Robotics Industry Converges on Japan for Humanoids Summit Tokyo 2026 [2026-05-28]
+Exhibition crawler: inserted=25, skipped=55
+Real Haptics crawler: inserted=0, skipped=21, old_skipped=19
+三菱総合研究所 crawler: inserted=0, skipped=6, old_skipped=0
+日本総合研究所 crawler: inserted=0, skipped=3, old_skipped=0
+野村総合研究所 crawler: inserted=0, skipped=1, old_skipped=1
+大和総研 crawler: inserted=0, skipped=16, old_skipped=0
+みずほリサーチ&テクノロジーズ crawler: inserted=0, skipped=0, old_skipped=0
+みずほリサーチ&テクノロジーズ crawler: inserted=0, skipped=0, old_skipped=0
+三菱UFJリサーチ&コンサルティング crawler: inserted=0, skipped=11, old_skipped=0
+[WARN] seed crawl failed: https://www.nedo.go.jp/activities/ZZJP2_100133.html -> 404 Client Error: Not Found for url: https://www.nedo.go.jp/activities/ZZJP2_100133.html
+Government policy crawler: inserted=2, skipped=50, old_skipped=1
+===== 2026-04-10 10:21:51 END =====
+

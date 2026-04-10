@@ -7,7 +7,12 @@ from bs4 import BeautifulSoup
 
 
 DEFAULT_HEADERS = {
-    "User-Agent": "TechInfoAggregator/0.1 (+local development)"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Upgrade-Insecure-Requests": "1",
 }
 
 KEYWORDS = [
@@ -37,9 +42,10 @@ DATE_PATTERNS = [
 
 
 def fetch_html(url: str, timeout: int = 20) -> str:
-    response = requests.get(url, headers=DEFAULT_HEADERS, timeout=timeout)
+    session = requests.Session()
+    response = session.get(url, headers=DEFAULT_HEADERS, timeout=timeout, allow_redirects=True)
     response.raise_for_status()
-    response.encoding = response.apparent_encoding  # ←これが重要
+    response.encoding = response.apparent_encoding
     time.sleep(0.5)
     return response.text
 

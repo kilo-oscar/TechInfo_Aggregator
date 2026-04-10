@@ -1,5 +1,5 @@
 import json
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -8,90 +8,97 @@ from crawler_utils import is_within_last_3_years, normalize_text, save_raw_item
 from crawlers.official_site_common import fetch_html, extract_date
 
 
-SOURCE_NAME = "野村総合研究所"
+SOURCE_NAME = "三菱UFJリサーチ&コンサルティング"
 SOURCE_TYPE = "thinktank"
 
 SEED_URLS = [
-    "https://www.nri.com/jp/knowledge/report/list.html",
-    "https://www.nri.com/jp/media/journal/",
-    "https://www.nri.com/jp/media/column/",
+    "https://www.murc.jp/library/column/",
+    "https://www.murc.jp/library/report/",
+    "https://www.murc.jp/service/keyword/70/",
+    "https://www.murc.jp/servicerobot/",
 ]
 
-ALLOWED_DOMAINS = {"nri.com", "www.nri.com"}
+ALLOWED_DOMAINS = {"murc.jp", "www.murc.jp"}
 ALLOWED_PATH_HINTS = [
-    "/jp/knowledge/report/",
-    "/jp/media/journal/",
-    "/jp/media/column/",
-    "/jp/knowledge/publication/",
+    "/library/column/",
+    "/library/report/",
+    "/service/keyword/70/",
+    "/servicerobot/",
 ]
 EXCLUDED_PATH_HINTS = [
-    "/jp/news/",
-    "/news-release/",
-    "/recruit/",
-    "/event/",
-    "/seminar/",
-    "/podcast/",
-    "/movie/",
     "/contact/",
     "/privacy",
     "/policy",
+    "/recruit/",
+    "/seminar/",
+    "/event/",
+    "/news/",
+    "/company/",
+    "/english/",
+    "/book/",
 ]
 
 STRONG_KEYWORDS = [
     "physical ai",
     "フィジカルai",
-    "フィジカル（物理的な）ai",
     "embodied ai",
     "エンボディドai",
+    "robot",
+    "robotics",
+    "ロボット",
+    "ロボティクス",
     "humanoid",
     "ヒューマノイド",
     "人型ロボット",
     "自律ロボット",
-    "産業ロボット",
     "協働ロボット",
-    "ロボティクス",
-    "robotics",
-    "robot",
-    "ロボット",
+    "産業ロボット",
+    "service robot",
+    "service robots",
+    "サービスロボット",
+    "搬送ロボット",
+    "物流ロボット",
+    "マニピュレーション",
+    "manipulation",
+    "grasp",
+    "把持",
+    "motion planning",
+    "動作計画",
+    "force control",
+    "力制御",
+    "センシング",
+    "sensing",
     "vision language action",
     "vla",
     "world model",
     "world models",
-    "デジタルツイン",
     "digital twin",
-    "マニピュレーション",
-    "manipulation",
-    "把持",
-    "grasp",
-    "力制御",
-    "force control",
-    "動作計画",
-    "motion planning",
-    "センシング",
-    "sensing",
-    "autonomous mobile robot",
-    "amr",
+    "デジタルツイン",
+    "simulation",
+    "シミュレーション",
+    "国際ロボット展",
 ]
 
 CONTEXT_KEYWORDS = [
-    "製造業",
-    "製造現場",
+    "製造",
     "工場",
     "物流",
     "倉庫",
+    "搬送",
+    "検査",
     "現場",
     "自律",
-    "自動運転",
-    "フィジカル",
-    "物理世界",
-    "simulation",
-    "シミュレーション",
-    "foundation model",
-    "基盤モデル",
+    "自動化",
+    "省人化",
+    "遠隔",
+    "ハプティクス",
+    "リアルハプティクス",
     "マルチモーダル",
     "multimodal",
-    "automation",
-    "自動化",
+    "foundation model",
+    "基盤モデル",
+    "物理世界",
+    "フィジカル",
 ]
 
 AI_KEYWORDS = [" ai ", "ai", "人工知能"]
@@ -100,34 +107,38 @@ NEGATIVE_KEYWORDS = [
     "金融",
     "銀行",
     "証券",
-    "保険",
-    "株式",
     "投資",
     "市場",
-    "金利",
     "為替",
-    "マクロ経済",
-    "経済見通し",
-    "マーケティング",
-    "広告",
-    "crm",
-    "会計",
+    "経済",
+    "景気",
+    "物価",
+    "金利",
+    "社会保障",
+    "医療制度",
+    "介護保険",
     "税",
+    "税制",
+    "会計",
+    "人事",
+    "労務",
     "法務",
     "ガバナンス",
+    "マーケティング",
+    "消費者",
+    "地域活性化",
+    "まちづくり",
+    "観光",
+    "脱炭素",
+    "gx",
     "サイバーセキュリティ",
     "セキュリティ",
     "個人情報",
     "チャットボット",
     "llm活用",
-    "生成aiを活用",
+    "生成ai活用",
     "バックオフィス",
-    "営業改革",
-    "人事",
-    "ヘルスケアビジネス",
-    "gx",
-    "脱炭素",
-    "バイオ燃料",
+    "働き方改革",
 ]
 
 
@@ -137,6 +148,7 @@ def _is_allowed_url(url: str) -> bool:
         return False
     if parsed.netloc.lower() not in ALLOWED_DOMAINS:
         return False
+
     path = parsed.path.lower()
     if not any(hint in path for hint in ALLOWED_PATH_HINTS):
         return False
@@ -168,7 +180,7 @@ def _is_physical_ai_relevant(title: str, summary: str, body: str, url: str) -> b
     if strong_hits >= 1:
         return True
 
-    if ai_hit and context_hits >= 2 and any(x in blob for x in ["製造", "工場", "物流", "現場", "自律", "物理世界"]):
+    if ai_hit and context_hits >= 2 and any(x in blob for x in ["ロボット", "robot", "製造", "工場", "物流", "現場", "フィジカル", "物理世界"]):
         return True
 
     return False
@@ -249,7 +261,7 @@ def _enrich_from_detail(item: dict) -> dict:
     }
 
 
-def fetch_nri_items() -> list[dict]:
+def fetch_murc_items() -> list[dict]:
     candidates = []
     for seed_url in SEED_URLS:
         try:
@@ -302,7 +314,7 @@ def fetch_nri_items() -> list[dict]:
 
 
 def main() -> None:
-    items = fetch_nri_items()
+    items = fetch_murc_items()
 
     with app.app_context():
         inserted = 0
