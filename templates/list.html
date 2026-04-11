@@ -165,6 +165,47 @@
       display: inline-block;
     }
 
+    .collector-panel {
+      margin-bottom: 18px;
+      padding: 14px;
+      border: 1px solid #dbe4f0;
+      border-radius: 12px;
+      background: #f8fbff;
+    }
+
+    .collector-panel h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+    }
+
+    .collector-help {
+      margin: 0 0 12px 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #475569;
+    }
+
+    .collector-status {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .collector-status.ok {
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+    }
+
+    .collector-status.error,
+    .collector-status.empty {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+
     .field button {
       background: #2563eb;
       color: white;
@@ -365,6 +406,34 @@
     <div class="layout">
       <div class="panel filter-panel">
         <h2>フィルタ</h2>
+        <div class="collector-panel">
+          <h3>キーワード収集</h3>
+          <p class="collector-help">任意のキーワードを入力すると、Google News RSS と Web 検索結果のリンク先ページを直接取得してDBへ保存します。</p>
+          {% if collection_status %}
+            <div class="collector-status {{ collection_status }}">
+              {% if collection_status == "ok" %}
+                <div>収集キーワード: {{ collection_keyword }}</div>
+                <div>新規追加: {{ collection_inserted }}件 / 既存・除外: {{ collection_skipped }}件</div>
+                {% if collection_sources %}
+                <div>追加元: {{ collection_sources }}</div>
+                {% endif %}
+              {% elif collection_status == "empty" %}
+                <div>キーワードを入力してください。</div>
+              {% else %}
+                <div>収集中にエラーが発生しました。時間をおいて再試行してください。</div>
+              {% endif %}
+            </div>
+          {% endif %}
+          <form method="post" action="/collect-keyword">
+            <div class="field">
+              <label for="keyword">収集キーワード</label>
+              <input type="text" name="keyword" id="keyword" value="{{ current_q or collection_keyword }}">
+            </div>
+            <div class="field">
+              <button type="submit">収集して反映</button>
+            </div>
+          </form>
+        </div>
         <form method="get" action="/">
           <div class="field">
             <label for="q">キーワード</label>

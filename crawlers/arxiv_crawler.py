@@ -7,6 +7,7 @@ from app import app
 from crawler_utils import save_raw_item, is_within_last_3_years
 
 ARXIV_API_URL = "http://export.arxiv.org/api/query"
+REQUEST_RETRY_DELAYS = [3, 10, 20]
 
 
 def fetch_arxiv_items(
@@ -28,8 +29,26 @@ def fetch_arxiv_items(
         "User-Agent": "TechInfoAggregator/0.1"
     }
 
-    response = requests.get(ARXIV_API_URL, params=params, headers=headers, timeout=30)
-    response.raise_for_status()
+    last_exc = None
+    for attempt, delay_seconds in enumerate([0] + REQUEST_RETRY_DELAYS, start=1):
+        if delay_seconds:
+            time.sleep(delay_seconds)
+        try:
+            response = requests.get(ARXIV_API_URL, params=params, headers=headers, timeout=30)
+            response.raise_for_status()
+            break
+        except requests.RequestException as exc:
+            last_exc = exc
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code != 429 and attempt > 1:
+                break
+            if status_code != 429 and attempt == 1:
+                break
+    else:
+        response = None
+
+    if last_exc and response is None:
+        raise last_exc
 
     feed = feedparser.parse(response.text)
     items = []
@@ -73,12 +92,16 @@ def main() -> None:
     # 連続アクセスを避けるため軽く待つ
     time.sleep(1.0)
 
-    items = fetch_arxiv_items(
-        search_query=search_query,
-        max_results=20,
-        sort_by="submittedDate",
-        sort_order="descending",
-    )
+    try:
+        items = fetch_arxiv_items(
+            search_query=search_query,
+            max_results=20,
+            sort_by="submittedDate",
+            sort_order="descending",
+        )
+    except requests.RequestException as exc:
+        print(f"arXiv crawler skipped: {exc}")
+        items = []
 
     with app.app_context():
         inserted = 0

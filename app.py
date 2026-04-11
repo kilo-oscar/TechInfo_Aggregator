@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 from sqlalchemy import or_, case
 from sqlalchemy import text
 from bs4 import BeautifulSoup
@@ -10,12 +10,14 @@ from models import db, RawItem
 from typing import Optional
 from page_date_utils import fetch_actual_published_at
 from crawler_utils import parse_date_safe
+from keyword_collection import KeywordCollector
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///techinfo.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
+keyword_collector = KeywordCollector()
 
 def ensure_schema() -> None:
     db.create_all()
@@ -668,6 +670,11 @@ def list_raw_items():
     )
     type_counts = {source_type: count for source_type, count in type_counts_raw}
     total_count = db.session.query(db.func.count(RawItem.id)).scalar()
+    collection_keyword = request.args.get("collection_keyword", "").strip()
+    collection_inserted = request.args.get("collection_inserted", "").strip()
+    collection_skipped = request.args.get("collection_skipped", "").strip()
+    collection_status = request.args.get("collection_status", "").strip()
+    collection_sources = request.args.get("collection_sources", "").strip()
 
     return render_template(
         "list.html",
@@ -689,7 +696,34 @@ def list_raw_items():
         event_country_shortcuts=event_country_shortcuts,
         news_category_shortcuts=news_category_shortcuts,
         available_news_categories=[group["category"] for group in news_category_groups],
+        collection_keyword=collection_keyword,
+        collection_inserted=collection_inserted,
+        collection_skipped=collection_skipped,
+        collection_status=collection_status,
+        collection_sources=collection_sources,
     )
+
+
+@app.route("/collect-keyword", methods=["POST"])
+def collect_keyword():
+    keyword = request.form.get("keyword", "").strip()
+    if not keyword:
+        return redirect(url_for("list_raw_items", collection_status="empty"))
+
+    try:
+        result = keyword_collector.collect(keyword)
+        source_labels = [f"{name}:{count}" for name, count in sorted(result["by_source"].items())]
+        return redirect(url_for(
+            "list_raw_items",
+            q=keyword,
+            collection_status="ok",
+            collection_keyword=result["keyword"],
+            collection_inserted=result["inserted"],
+            collection_skipped=result["skipped"],
+            collection_sources=" | ".join(source_labels[:8]),
+        ))
+    except Exception:
+        return redirect(url_for("list_raw_items", q=keyword, collection_status="error", collection_keyword=keyword))
 
 
 @app.route("/raw/<int:item_id>")
