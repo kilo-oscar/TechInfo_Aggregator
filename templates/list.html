@@ -532,7 +532,7 @@
                 <h3 class="country-heading">{{ group["country"] }} ({{ group["items"]|length }}件)</h3>
                 {% for item in group["items"] %}
                   <div class="result-card">
-                    <h3><a href="/raw/{{ item.id }}">{{ item.title }}</a></h3>
+                    <h3><a href="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}">{{ item.title }}</a></h3>
 
                     <div class="meta-row">
                       <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
@@ -561,7 +561,7 @@
                     </div>
                     {% endif %}
 
-                    <a class="detail-link" href="/raw/{{ item.id }}">詳細を見る</a>
+                    <a class="detail-link" href="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}">詳細を見る</a>
                   </div>
                 {% endfor %}
               </div>
@@ -569,7 +569,7 @@
           {% else %}
             {% for item in items %}
               <div class="result-card">
-                <h3><a href="/raw/{{ item.id }}">{{ item.title }}</a></h3>
+                <h3><a href="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}">{{ item.title }}</a></h3>
 
                 <div class="meta-row">
                   <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
@@ -597,7 +597,7 @@
                 </div>
                 {% endif %}
 
-                <a class="detail-link" href="/raw/{{ item.id }}">詳細を見る</a>
+                <a class="detail-link" href="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}">詳細を見る</a>
               </div>
             {% endfor %}
           {% endif %}

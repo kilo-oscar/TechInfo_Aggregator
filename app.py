@@ -670,6 +670,9 @@ def list_raw_items():
     )
     type_counts = {source_type: count for source_type, count in type_counts_raw}
     total_count = db.session.query(db.func.count(RawItem.id)).scalar()
+    current_list_url = request.full_path if request.query_string else request.path
+    if current_list_url.endswith("?"):
+        current_list_url = current_list_url[:-1]
     collection_keyword = request.args.get("collection_keyword", "").strip()
     collection_inserted = request.args.get("collection_inserted", "").strip()
     collection_skipped = request.args.get("collection_skipped", "").strip()
@@ -701,6 +704,7 @@ def list_raw_items():
         collection_skipped=collection_skipped,
         collection_status=collection_status,
         collection_sources=collection_sources,
+        current_list_url=current_list_url,
     )
 
 
@@ -729,6 +733,9 @@ def collect_keyword():
 @app.route("/raw/<int:item_id>")
 def raw_detail(item_id):
     item = RawItem.query.get_or_404(item_id)
+    return_to = request.args.get("return_to", "").strip()
+    if not return_to.startswith("/"):
+        return_to = "/"
     enrich_event_fields(item)
     if item.source_type == "event":
         parent_key = build_event_parent_key(item)
@@ -752,7 +759,7 @@ def raw_detail(item_id):
     item.date_mismatch = bool(
         item.published_at and item.actual_published_at and not dates_match(item.published_at, item.actual_published_at)
     )
-    return render_template("raw_detail.html", item=item)
+    return render_template("raw_detail.html", item=item, return_to=return_to)
 
 
 if __name__ == "__main__":
