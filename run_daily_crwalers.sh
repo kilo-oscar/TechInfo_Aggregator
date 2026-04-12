@@ -37,8 +37,8 @@ source "$PROJECT_DIR/.venv/bin/activate"
 # 必要なら Python パス確認
 python3 --version >> "$LOG_FILE" 2>&1
 
-# 既存データをリセット
-run_step "reset_raw_items" python3 reset_raw_items.py
+# 既存データは保持し、各クローラが重複確認しながら新規分だけ追加する
+echo "[INFO] keep existing raw_items and append only non-duplicate items" >> "$LOG_FILE"
 
 # 各クローラを順番に実行
 run_step "arxiv_crawler" python3 -m crawlers.arxiv_crawler
