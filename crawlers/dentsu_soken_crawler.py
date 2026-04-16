@@ -65,6 +65,10 @@ TOPIC_KEYWORDS = [
     "agv",
     "manipulation",
     "ロボット制御",
+    "遠隔操作",
+    "リモートオペレーション",
+    "ロボット 遠隔操作",
+    "ロボット リモートオペレーション",
 ]
 SEARCH_QUERIES = [
     "site:dentsusoken.com Physical AI 電通総研",
@@ -75,6 +79,8 @@ SEARCH_QUERIES = [
     "site:dentsusoken.com ヒューマノイド 電通総研",
     "site:dentsusoken.com 協働ロボット 電通総研",
     "site:dentsusoken.com AMR OR AGV 電通総研",
+    "site:dentsusoken.com ロボット 遠隔操作 電通総研",
+    "site:dentsusoken.com ロボット リモートオペレーション 電通総研",
     "site:mfg.dentsusoken.com ロボット 電通総研",
     "site:mfg.dentsusoken.com ロボティクス 電通総研",
     "site:tech.dentsusoken.com フィジカルAI 電通総研",
@@ -85,6 +91,8 @@ SEARCH_QUERIES = [
     "site:tech.dentsusoken.com ロボット 電通総研",
     "site:tech.dentsusoken.com ロボティクス 電通総研",
     "site:tech.dentsusoken.com VLA 電通総研",
+    "site:tech.dentsusoken.com ロボット 遠隔操作 電通総研",
+    "site:tech.dentsusoken.com ロボット リモートオペレーション 電通総研",
 ]
 TECH_BLOG_ARCHIVE_URL = "https://tech.dentsusoken.com/archive"
 

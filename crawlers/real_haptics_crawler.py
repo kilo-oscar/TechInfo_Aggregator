@@ -33,6 +33,9 @@ OFFICIAL_EXTRA_KEYWORDS = [
     "力触覚",
     "触覚",
     "遠隔操作",
+    "ロボット 遠隔操作",
+    "ロボット リモートオペレーション",
+    "リモートオペレーション",
     "teleoperation",
     "automation",
     "モーションリブ",
@@ -41,7 +44,7 @@ OFFICIAL_EXTRA_KEYWORDS = [
 
 NEWS_QUERIES = [
     ("Google News / Real Haptics", '"Real Haptics" OR リアルハプティクス OR Motion Lib OR モーションリブ'),
-    ("Google News / Haptics Robotics", '力触覚 ロボット OR haptics robotics OR haptic teleoperation'),
+    ("Google News / Haptics Robotics", '力触覚 ロボット OR haptics robotics OR haptic teleoperation OR "ロボット 遠隔操作" OR "ロボット リモートオペレーション"'),
 ]
 
 

@@ -23,6 +23,24 @@ TIMEOUT = 20
 DEFAULT_DELAY = 1.0
 DEFAULT_MAX_RESULTS = 10
 
+ORGANIZER_FOCUSED_QUERIES = [
+    "日刊工業新聞社 主催 ロボット 展示会",
+    "日刊工業新聞社 主催 ロボティクス 展示会",
+    "日刊工業新聞社 主催 physical AI 展示会",
+    "日刊工業新聞社 主催 ヒューマノイド 展示会",
+    "日本ロボット工業会 主催 ロボット 展示会",
+    "日本ロボット工業会 主催 ロボティクス 展示会",
+    "日本ロボット工業会 主催 physical AI 展示会",
+    "日本ロボット工業会 主催 ヒューマノイド 展示会",
+    "日刊工業新聞社 日本ロボット工業会 展示会 ロボット",
+    "日刊工業新聞社 日本ロボット工業会 展示会 ロボティクス",
+    "site:nikkan.co.jp ロボット 展示会 日刊工業新聞社",
+    "site:nikkan.co.jp ロボティクス 展示会 日刊工業新聞社",
+    "site:nikkan.co.jp physical AI 展示会",
+    "site:nikkan.co.jp ヒューマノイド 展示会",
+    "site:nikkan.co.jp 日本ロボット工業会 展示会",
+]
+
 DEFAULT_QUERIES = [
     "physical AI exhibition",
     "physical AI expo",
@@ -49,17 +67,25 @@ DEFAULT_QUERIES = [
     "Japan IT Week AI Expo Japan",
     "CEATEC AI robotics Japan",
     "TECHNO-FRONTIER 工場の搬送と協働ロボット展",
+    "ロボット 遠隔操作 展示会",
+    "ロボット リモートオペレーション 展示会",
     "日本能率協会 ロボット 展示会",
     "ROBOT TECHNOLOGY JAPAN 2026",
     "Japan Robot Week official robotics exhibition Japan",
     "AI博覧会 東京国際フォーラム",
     "Vision AI Expo 幕張メッセ",
     "画像認識 AI Expo 幕張メッセ",
-]
+    "RoboNext 2026 日刊工業新聞 日本ロボット工業会",
+    "国際ロボット展 日本ロボット工業会 日刊工業新聞",
+    "日本ロボット工業会 展示会 ロボット",
+    "日刊工業新聞 ロボット 展示会",
+] + ORGANIZER_FOCUSED_QUERIES
 
 JAPAN_EVENT_SEED_URLS = [
     "https://irex.nikkan.co.jp/",
     "https://biz.nikkan.co.jp/eve/s-robot/",
+    "https://robonext.nikkan.co.jp/",
+    "https://robonext.nikkan.co.jp/exhibitguidance/",
     "https://www.manufacturing-world.jp/hub/en-gb.html",
     "https://www.manufacturing-world.jp/hub/ja-jp.html",
     "https://www.fiweek.jp/hub/en-gb/about/robodex.html",
@@ -73,6 +99,9 @@ JAPAN_EVENT_SEED_URLS = [
     "https://tf.jma.or.jp/outline/robot.html",
     "https://aismiley.co.jp/ai_hakurankai/",
     "https://aismiley.co.jp/ai_hakurankai/spring-2026/",
+    "https://www.cbw-expo.jp/ja-jp.html",
+    "https://www.cbw-expo.jp/ja-jp/visit.html",
+    "https://www.cbw-expo.jp/ja-jp/exhibit/rem.html",
     "https://vision-ai-expo.jp/",
     "https://robot-technology.jp/",
     "https://robot-technology.jp/about/",
@@ -103,9 +132,13 @@ POSITIVE_KEYWORDS = [
     "ヒューマノイド",
     "国際ロボット展",
     "irex",
+    "robonext",
+    "japan robot week",
     "robodex",
     "nextech week",
     "physical ai expo",
+    "日本ロボット工業会",
+    "日刊工業新聞",
 ]
 
 NEGATIVE_KEYWORDS = [
@@ -153,6 +186,7 @@ SECONDARY_EVENT_HINTS = [
 TRUSTED_EVENT_DOMAINS = {
     "irex.nikkan.co.jp",
     "biz.nikkan.co.jp",
+    "robonext.nikkan.co.jp",
     "www.manufacturing-world.jp",
     "www.fiweek.jp",
     "www.nextech-week.jp",
@@ -169,6 +203,41 @@ TRUSTED_EVENT_DOMAINS = {
     "www.roboticssummit.com",
 }
 
+TARGET_ORGANIZER_KEYWORDS = [
+    "日本ロボット工業会",
+    "一般社団法人日本ロボット工業会",
+    "the japan robot association",
+    "japan robot association",
+    "日刊工業新聞社",
+    "株式会社日刊工業新聞社",
+    "nikkan kogyo shimbun",
+    "the nikkan kogyo shimbun",
+]
+
+ROBOTICS_TOPIC_KEYWORDS = [
+    "physical ai",
+    "フィジカルai",
+    "robot",
+    "robotics",
+    "ロボット",
+    "ロボティクス",
+    "humanoid",
+    "ヒューマノイド",
+    "協働ロボット",
+    "industrial robot",
+    "産業用ロボット",
+    "agv",
+    "amr",
+    "遠隔操作",
+    "リモートオペレーション",
+    "ロボット 遠隔操作",
+    "ロボット リモートオペレーション",
+    "自律移動",
+    "automation",
+    "自動化",
+    "embodied ai",
+]
+
 AGGREGATOR_DOMAINS = {
     "qviro.com",
     "www.showsbee.com",
@@ -180,6 +249,16 @@ AGGREGATOR_DOMAINS = {
     "robohorizon.com",
     "automationexpo.com",
 }
+
+EVENT_DOMAIN_HINTS = [
+    "expo",
+    "exhibition",
+    "fair",
+    "show",
+    "summit",
+    "week",
+    "messe",
+]
 
 EXHIBITOR_PAGE_KEYWORDS = [
     "出展します",
@@ -208,6 +287,8 @@ EXHIBITOR_PAGE_KEYWORDS = [
 
 EXHIBITOR_URL_KEYWORDS = [
     "/exhibitor",
+    "/exhibit/",
+    "/exhibit?",
     "/company_news/",
     "/news/",
     "/blog/",
@@ -282,16 +363,17 @@ class ExhibitionCrawler:
         domain = urlparse(result.url).netloc.lower()
         if any(bad in blob for bad in NEGATIVE_KEYWORDS):
             return False
-        if not self.is_official_event_domain(domain):
+        if not self.is_event_domain_candidate(domain):
             return False
 
         positive_match = any(good in blob for good in POSITIVE_KEYWORDS)
         secondary_match = any(hint in blob for hint in SECONDARY_EVENT_HINTS)
+        has_year = bool(re.search(r"20\d{2}", blob))
         if not positive_match:
             return False
-        if self.looks_like_exhibitor_page(result.url, result.title, result.snippet):
+        if self.looks_like_exhibitor_page(result.url, result.title, result.snippet) and not self.is_event_site_exhibitor_page(result.url):
             return False
-        return positive_match and (secondary_match or "2026" in blob or "2027" in blob)
+        return positive_match and (secondary_match or has_year)
 
     def fetch_html(self, url: str) -> Optional[str]:
         try:
@@ -309,6 +391,14 @@ class ExhibitionCrawler:
         domain = (domain or "").lower()
         return domain in TRUSTED_EVENT_DOMAINS
 
+    def is_event_domain_candidate(self, domain: str) -> bool:
+        domain = (domain or "").lower()
+        if not domain or domain in AGGREGATOR_DOMAINS:
+            return False
+        if self.is_official_event_domain(domain):
+            return True
+        return any(hint in domain for hint in EVENT_DOMAIN_HINTS)
+
     def looks_like_exhibitor_page(self, url: str, *texts: str) -> bool:
         lower_url = (url or "").lower()
         if any(keyword in lower_url for keyword in EXHIBITOR_URL_KEYWORDS):
@@ -320,6 +410,14 @@ class ExhibitionCrawler:
                 return False
             return True
         return False
+
+    def is_event_site_exhibitor_page(self, url: str) -> bool:
+        parsed = urlparse(url or "")
+        domain = parsed.netloc.lower()
+        path = parsed.path.lower()
+        if not self.is_event_domain_candidate(domain):
+            return False
+        return any(keyword in path for keyword in EXHIBITOR_URL_KEYWORDS)
 
     def is_upcoming_event(self, start_date: Optional[str], end_date: Optional[str]) -> bool:
         target = end_date or start_date
@@ -507,13 +605,23 @@ class ExhibitionCrawler:
         patterns = [
             r"(?:Organized by|Organizer|Organiser)[:\s]+([A-Z][A-Za-z0-9 .,&()'\-/]{2,100})",
             r"(?:organized by|organised by)\s+([A-Z][A-Za-z0-9 .,&()'\-/]{2,100})",
+            r"(?:Co-organized by|Co-organiser|Co-organizer)[:\s]+([A-Z][A-Za-z0-9 .,&()'\-/]{2,100})",
             r"(?:主催|運営)[:：]\s*([^\n|]{2,100})",
+            r"(?:主催者|共催)[:：]\s*([^\n|]{2,140})",
         ]
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 return normalize_text(match.group(1), max_length=120)
         return ""
+
+    def has_target_organizer(self, *texts: str) -> bool:
+        blob = " ".join(texts).lower()
+        return any(keyword in blob for keyword in TARGET_ORGANIZER_KEYWORDS)
+
+    def is_robotics_related_event(self, *texts: str) -> bool:
+        blob = " ".join(texts).lower()
+        return any(keyword in blob for keyword in ROBOTICS_TOPIC_KEYWORDS)
 
     def normalize_event_title(self, title: str, summary: str, page_text: str) -> str:
         normalized_title = normalize_text(title, max_length=500)
@@ -574,11 +682,26 @@ class ExhibitionCrawler:
         organizer = self.extract_organizer(page_text)
         domain = urlparse(result.url).netloc.lower()
 
-        if not self.is_official_event_domain(domain):
+        if not self.is_event_domain_candidate(domain):
             return None
 
-        if self.looks_like_exhibitor_page(result.url, title, summary):
+        if self.looks_like_exhibitor_page(result.url, title, summary) and not self.is_event_site_exhibitor_page(result.url):
             return None
+
+        if not self.is_robotics_related_event(
+            result.query,
+            result.title,
+            result.snippet,
+            title,
+            summary,
+            page_text[:5000],
+            organizer,
+        ):
+            return None
+
+        if domain.endswith("nikkan.co.jp"):
+            if not self.has_target_organizer(title, summary, page_text[:5000], organizer):
+                return None
 
         if not self.is_upcoming_event(start_date, end_date):
             return None
@@ -587,6 +710,7 @@ class ExhibitionCrawler:
             "kind": "exhibition_event",
             "search_query": result.query,
             "search_engine": result.engine,
+            "page_kind": "event_site_exhibitor" if self.is_event_site_exhibitor_page(result.url) else "event_page",
             "event_name": title,
             "source_domain": domain,
             "official_url": result.url,

@@ -78,6 +78,10 @@ STRONG_KEYWORDS = [
     "sensing",
     "autonomous mobile robot",
     "amr",
+    "遠隔操作",
+    "リモートオペレーション",
+    "ロボット 遠隔操作",
+    "ロボット リモートオペレーション",
 ]
 
 CONTEXT_KEYWORDS = [
@@ -99,6 +103,8 @@ CONTEXT_KEYWORDS = [
     "multimodal",
     "automation",
     "自動化",
+    "遠隔操作",
+    "リモートオペレーション",
     "agent",
     "agentic",
 ]

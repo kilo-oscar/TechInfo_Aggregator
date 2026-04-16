@@ -1,3 +1,4 @@
+from crawlers.dentsu_soken_crawler import main as dentsu_soken_main
 from crawlers.dir_crawler import main as dir_main
 from crawlers.jri_crawler import main as jri_main
 from crawlers.mizuho_rt_crawler import main as mizuho_rt_main
@@ -7,6 +8,7 @@ from crawlers.nri_crawler import main as nri_main
 
 
 def main() -> None:
+    dentsu_soken_main()
     mri_main()
     jri_main()
     nri_main()

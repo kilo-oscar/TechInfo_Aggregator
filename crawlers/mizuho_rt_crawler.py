@@ -57,6 +57,7 @@ QUERIES = [
     'site:mizuhobank.co.jp/corporate/mhri/research/ 生成AI OR AI活用 OR 画像認識 OR センシング',
     'site:mizuhobank.co.jp/corporate/tech/ "digital twin" OR デジタルツイン OR simulation OR シミュレーション',
     'site:mizuhobank.co.jp/corporate/tech/ 産業用ロボット OR 協働ロボット OR 遠隔操作',
+    'site:mizuhobank.co.jp/corporate/tech/ "ロボット 遠隔操作" OR "ロボット リモートオペレーション"',
     'site:mizuhobank.co.jp/corporate/tech/ foundation model OR world model OR multimodal',
     'site:mizuhobank.co.jp/corporate/industry/ AI OR ロボット OR 自動化 OR DX',
     'site:mizuhobank.co.jp/corporate/industry/ 画像解析 OR 機械学習 OR データ分析',
@@ -93,6 +94,10 @@ PRIMARY_KEYWORDS = [
     "画像認識",
     "機械学習",
     "自然言語処理",
+    "遠隔操作",
+    "リモートオペレーション",
+    "ロボット 遠隔操作",
+    "ロボット リモートオペレーション",
 ]
 
 AI_KEYWORDS = [
@@ -120,6 +125,8 @@ INDUSTRY_KEYWORDS = [
     "デジタルツイン",
     "digital twin",
     "遠隔",
+    "遠隔操作",
+    "リモートオペレーション",
     "現場",
     "設備",
     "製造",

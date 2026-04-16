@@ -43,6 +43,8 @@ ROBOTICS_CONTEXT_KEYWORDS = [
     "automation",
     "自動化",
     "産業用",
+    "遠隔操作",
+    "リモートオペレーション",
 ]
 
 
@@ -188,6 +190,7 @@ def build_query_groups() -> list[tuple[str, list[str]]]:
             '"Universal Robots" OR "ユニバーサルロボット" OR "URロボット"',
             '("協働ロボット" OR cobot) (manufacturer OR maker OR 導入 OR 発表)',
             '("industrial robot" OR "産業用ロボット") (launch OR release OR 発表)',
+            '("ロボット 遠隔操作" OR "ロボット リモートオペレーション")',
         ]),
         ("Startup / Robotics Japan", [
             'ロボット スタートアップ 日本',
