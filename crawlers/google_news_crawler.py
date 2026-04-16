@@ -2,13 +2,23 @@ import urllib.parse
 from email.utils import parsedate_to_datetime
 
 import feedparser
+import requests
 
 from app import app
 
-from crawler_utils import save_raw_item, is_within_last_3_years
+from crawler_utils import canonicalize_url, is_within_last_3_years, normalize_text, save_raw_item
 
 
 GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+TIMEOUT = 20
+GOOGLE_NEWS_LOCALES = [
+    ("ja", "JP", "JP:ja"),
+    ("en-US", "US", "US:en"),
+]
 
 ROBOT_MAKER_REJECT_KEYWORDS = [
     "ur都市",
@@ -58,13 +68,51 @@ def normalize_published(entry) -> str:
         return published
 
 
-def fetch_google_news_items(feed_url: str, logical_source_name: str) -> list[dict]:
-    feed = feedparser.parse(feed_url)
+def fetch_google_news_feed(feed_url: str):
+    try:
+        response = requests.get(
+            feed_url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        print(f"[WARN] Google News feed request failed: url={feed_url} error={exc}")
+        return None
+
+    return feedparser.parse(response.content)
+
+
+def fetch_google_news_items(
+    *,
+    feed_url: str,
+    logical_source_name: str,
+    query: str,
+    locale_label: str,
+    seen_urls: set[str],
+    seen_entry_keys: set[str],
+) -> list[dict]:
+    feed = fetch_google_news_feed(feed_url)
+    if feed is None:
+        return []
+
     items = []
 
     for entry in feed.entries:
-        raw_summary = getattr(entry, "summary", "") or ""
+        url = canonicalize_url(getattr(entry, "link", ""))
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+
+        raw_summary = normalize_text(getattr(entry, "summary", "") or "", max_length=2000)
         published_at = normalize_published(entry)
+        publisher = normalize_text(getattr(getattr(entry, "source", {}), "title", "") or "", max_length=200)
+        title = normalize_text((getattr(entry, "title", "") or "").strip(), max_length=500)
+        entry_key = f"{title}|{published_at}"
+        if title and published_at and entry_key in seen_entry_keys:
+            continue
+        if title and published_at:
+            seen_entry_keys.add(entry_key)
 
         raw_text_parts = []
         if raw_summary:
@@ -73,13 +121,18 @@ def fetch_google_news_items(feed_url: str, logical_source_name: str) -> list[dic
         if getattr(entry, "published", None):
             raw_text_parts.append(f"Original published: {entry.published}")
 
+        if publisher:
+            raw_text_parts.append(f"Publisher: {publisher}")
+
         raw_text_parts.append(f"Google News feed source: {logical_source_name}")
+        raw_text_parts.append(f"Google News query: {query}")
+        raw_text_parts.append(f"Google News locale: {locale_label}")
 
         items.append({
             "source_name": logical_source_name,
             "source_type": "news",
-            "title": (getattr(entry, "title", "") or "").strip(),
-            "url": getattr(entry, "link", ""),
+            "title": title,
+            "url": url,
             "published_at": published_at,
             "raw_summary": raw_summary,
             "raw_text": "\n\n".join(raw_text_parts),
@@ -110,47 +163,80 @@ def should_keep_google_news_item(item: dict) -> bool:
     return True
 
 
-def build_queries() -> list[tuple[str, str]]:
-    physical_ai_query = (
-        '"Physical AI" OR "Embodied AI" OR "フィジカルAI" OR "Embodied Intelligence" '
-        'OR "vision language action" OR VLA OR "robot manipulation" OR humanoid robotics'
-    )
-
-    robot_maker_query = (
-        'FANUC OR ファナック OR "安川電機" OR Yaskawa OR '
-        '"Universal Robots" OR "ユニバーサルロボット" OR "URロボット" OR '
-        '("UR" AND (ロボット OR 協働ロボット OR cobot OR robot)) OR '
-        '"協働ロボット" OR "industrial robot"'
-    )
-
+def build_query_groups() -> list[tuple[str, list[str]]]:
     return [
-        ("Google News / Physical AI", physical_ai_query),
-        ("Google News / Robot Makers", robot_maker_query),
-
-        ("Startup / Robotics Japan",
-         'ロボット スタートアップ 日本 OR robotics startup Japan'),
-
-        ("Startup / Funding",
-         'ロボット スタートアップ 資金調達 OR robotics startup funding Japan'),
-
-        ("Startup / Humanoid",
-         'ヒューマノイド スタートアップ OR humanoid robot startup'),
-
-        ("Startup / Warehouse",
-         '倉庫ロボット スタートアップ OR warehouse robotics startup'),
-
-        ("Startup / AI Robotics",
-         'AI ロボット スタートアップ OR AI robotics startup'),
+        ("Google News / Physical AI", [
+            '"Physical AI"',
+            '"フィジカルAI"',
+            '"Embodied AI" robot',
+            '"Embodied Intelligence" robot',
+            '("vision language action" OR "vision-language-action" OR VLA) robot',
+            '"robot manipulation" AI',
+            '("robot foundation model" OR "foundation model") robotics',
+            'humanoid robotics AI',
+        ]),
+        ("Google News / AI Agents", [
+            '"AIエージェント"',
+            '"AI agent"',
+            '"agentic AI"',
+            '("AI agent" OR "AIエージェント") robotics',
+            '("AI agent" OR "agentic AI") automation',
+        ]),
+        ("Google News / Robot Makers", [
+            'FANUC OR ファナック',
+            '"安川電機" OR Yaskawa',
+            '"Universal Robots" OR "ユニバーサルロボット" OR "URロボット"',
+            '("協働ロボット" OR cobot) (manufacturer OR maker OR 導入 OR 発表)',
+            '("industrial robot" OR "産業用ロボット") (launch OR release OR 発表)',
+        ]),
+        ("Startup / Robotics Japan", [
+            'ロボット スタートアップ 日本',
+            'robotics startup Japan',
+        ]),
+        ("Startup / Funding", [
+            'ロボット スタートアップ 資金調達',
+            'robotics startup funding',
+            'robot startup funding',
+        ]),
+        ("Startup / Humanoid", [
+            'ヒューマノイド スタートアップ',
+            'humanoid robot startup',
+        ]),
+        ("Startup / Warehouse", [
+            '倉庫ロボット スタートアップ',
+            'warehouse robotics startup',
+            '物流ロボット スタートアップ',
+        ]),
+        ("Startup / AI Robotics", [
+            'AI ロボット スタートアップ',
+            'AI robotics startup',
+            'robotics AI startup',
+        ]),
     ]
 
 
 def main() -> None:
     all_items = []
+    source_counts: dict[str, int] = {}
 
-    for logical_source_name, query in build_queries():
-        feed_url = format_google_news_url(query=query, hl="ja", gl="JP", ceid="JP:ja")
-        items = fetch_google_news_items(feed_url=feed_url, logical_source_name=logical_source_name)
-        all_items.extend(items)
+    for logical_source_name, queries in build_query_groups():
+        seen_urls: set[str] = set()
+        seen_entry_keys: set[str] = set()
+        source_counts[logical_source_name] = 0
+        for query in queries:
+            for hl, gl, ceid in GOOGLE_NEWS_LOCALES:
+                locale_label = f"{gl}/{hl}"
+                feed_url = format_google_news_url(query=query, hl=hl, gl=gl, ceid=ceid)
+                items = fetch_google_news_items(
+                    feed_url=feed_url,
+                    logical_source_name=logical_source_name,
+                    query=query,
+                    locale_label=locale_label,
+                    seen_urls=seen_urls,
+                    seen_entry_keys=seen_entry_keys,
+                )
+                source_counts[logical_source_name] += len(items)
+                all_items.extend(items)
 
     with app.app_context():
         inserted = 0
@@ -172,6 +258,8 @@ def main() -> None:
                 skipped += 1
 
         print(f"Google News から取得: inserted={inserted}, skipped={skipped}, old_skipped={old_skipped}")
+        for logical_source_name, count in source_counts.items():
+            print(f"[INFO] {logical_source_name}: fetched={count}")
 
 
 if __name__ == "__main__":

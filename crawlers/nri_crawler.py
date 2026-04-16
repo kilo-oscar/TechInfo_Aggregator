@@ -42,6 +42,13 @@ STRONG_KEYWORDS = [
     "フィジカルai",
     "フィジカル（物理的な）ai",
     "embodied ai",
+    "ai agent",
+    "agent ai",
+    "agentic ai",
+    "aiエージェント",
+    "ai エージェント",
+    "エージェントai",
+    "エージェント ai",
     "エンボディドai",
     "humanoid",
     "ヒューマノイド",
@@ -92,6 +99,8 @@ CONTEXT_KEYWORDS = [
     "multimodal",
     "automation",
     "自動化",
+    "agent",
+    "agentic",
 ]
 
 AI_KEYWORDS = [" ai ", "ai", "人工知能"]

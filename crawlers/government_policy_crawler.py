@@ -29,6 +29,13 @@ POLICY_KEYWORDS = [
     "physical ai",
     "フィジカルai",
     "フィジカルAI",
+    "ai agent",
+    "agent ai",
+    "agentic ai",
+    "aiエージェント",
+    "ai エージェント",
+    "エージェントai",
+    "エージェント ai",
     "aiロボティクス",
     "ai robotics",
     "embodied ai",
@@ -76,8 +83,9 @@ SOURCE_CONFIGS = [
             'site:meti.go.jp ロボット 政策 AI',
             'site:meti.go.jp AIロボティクス ロボット政策',
             'site:meti.go.jp フィジカルAI ロボティクス',
+            'site:meti.go.jp AIエージェント 自動化',
         ],
-        "news_query": 'site:meti.go.jp ロボット OR AIロボティクス OR フィジカルAI OR 産業用ロボット',
+        "news_query": 'site:meti.go.jp ロボット OR AIロボティクス OR フィジカルAI OR AIエージェント OR 産業用ロボット',
     },
     {
         "name": "MEXT / AI・Robot",
@@ -89,8 +97,9 @@ SOURCE_CONFIGS = [
             'site:mext.go.jp ロボット AI 文部科学省',
             'site:mext.go.jp ムーンショット ロボット AI',
             'site:mext.go.jp AI for Science ロボット',
+            'site:mext.go.jp AIエージェント 研究',
         ],
-        "news_query": 'site:mext.go.jp ロボット OR AI OR ムーンショット',
+        "news_query": 'site:mext.go.jp ロボット OR AI OR AIエージェント OR ムーンショット',
     },
     {
         "name": "Cabinet Office / Society 5.0",
@@ -101,8 +110,9 @@ SOURCE_CONFIGS = [
         "queries": [
             'site:cao.go.jp Society 5.0 AI ロボット',
             'site:cao.go.jp AI ロボティクス 関係府省',
+            'site:cao.go.jp AIエージェント 自動化',
         ],
-        "news_query": 'site:cao.go.jp Society 5.0 OR ロボット OR AI',
+        "news_query": 'site:cao.go.jp Society 5.0 OR ロボット OR AI OR AIエージェント',
     },
     {
         "name": "NEDO / Robot・AI",
@@ -116,8 +126,9 @@ SOURCE_CONFIGS = [
             'site:nedo.go.jp ロボット AI 公募',
             'site:nedo.go.jp フィジカルAI ロボット',
             'site:nedo.go.jp AIロボット マルチモーダル',
+            'site:nedo.go.jp AIエージェント 自動化',
         ],
-        "news_query": 'site:nedo.go.jp ロボット OR AIロボット OR フィジカルAI OR 公募',
+        "news_query": 'site:nedo.go.jp ロボット OR AIロボット OR フィジカルAI OR AIエージェント OR 公募',
     },
     {
         "name": "JST / Moonshot・AIP",
@@ -130,8 +141,9 @@ SOURCE_CONFIGS = [
         "queries": [
             'site:jst.go.jp ムーンショット 目標3 ロボット',
             'site:jst.go.jp AI ロボット 研究領域',
+            'site:jst.go.jp AIエージェント 研究',
         ],
-        "news_query": 'site:jst.go.jp ロボット OR AI OR ムーンショット',
+        "news_query": 'site:jst.go.jp ロボット OR AI OR AIエージェント OR ムーンショット',
     },
     {
         "name": "MIC / ICT・Remote Robotics",
@@ -142,8 +154,9 @@ SOURCE_CONFIGS = [
         "queries": [
             'site:soumu.go.jp ロボット AI 遠隔操作',
             'site:soumu.go.jp AI ロボット 5G',
+            'site:soumu.go.jp AIエージェント 自動化',
         ],
-        "news_query": 'site:soumu.go.jp ロボット OR AI OR 遠隔操作 OR 5G',
+        "news_query": 'site:soumu.go.jp ロボット OR AI OR AIエージェント OR 遠隔操作 OR 5G',
     },
 ]
 

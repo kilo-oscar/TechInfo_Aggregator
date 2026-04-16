@@ -55,7 +55,20 @@ TOPIC_KEYWORDS = {
     "決算速報": ["決算速報", "決算", "決算発表", "financial results", "earnings", "results"],
     "physical_ai": ["physical ai", "physical-ai", "フィジカルai", "embodied ai", "embodied intelligence", "vla"],
     "robotics": ["robotics", "robot", "ロボティクス", "ロボット", "協働ロボット", "humanoid", "ヒューマノイド"],
-    "ai": ["artificial intelligence", "ai", "生成ai", "人工知能", "aiエージェント", "machine learning"],
+    "ai": [
+        "artificial intelligence",
+        "ai",
+        "生成ai",
+        "人工知能",
+        "aiエージェント",
+        "ai エージェント",
+        "エージェントai",
+        "エージェント ai",
+        "ai agent",
+        "agent ai",
+        "agentic ai",
+        "machine learning",
+    ],
     "real_haptics": ["real haptics", "real-haptics", "リアルハプティクス", "motion lib", "モーションリブ", "haptics"],
 }
 

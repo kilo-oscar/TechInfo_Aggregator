@@ -14,6 +14,13 @@ CONFIG = ThinkTankCrawlerConfig(
     extra_keywords=[
         "physical ai",
         "フィジカルai",
+        "ai agent",
+        "agent ai",
+        "agentic ai",
+        "aiエージェント",
+        "ai エージェント",
+        "エージェントai",
+        "エージェント ai",
         "aiロボティクス",
         "ai・ロボティクス",
         "embodied ai",
