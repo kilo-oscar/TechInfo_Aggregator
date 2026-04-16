@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>収集データ一覧</title>
+  <title>{{ page_title }}</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -206,6 +206,52 @@
       color: #991b1b;
     }
 
+    .archive-panel {
+      margin-bottom: 18px;
+      padding: 14px;
+      border: 1px solid #dbe4f0;
+      border-radius: 12px;
+      background: #f8fafc;
+    }
+
+    .archive-panel h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+    }
+
+    .archive-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .archive-link {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #dbe4f0;
+      background: white;
+      color: #334155;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    .archive-link:hover {
+      background: #eff6ff;
+      border-color: #93c5fd;
+    }
+
+    .archive-link.active {
+      background: #dbeafe;
+      border-color: #60a5fa;
+      color: #1d4ed8;
+      font-weight: bold;
+    }
+
     .field button {
       background: #2563eb;
       color: white;
@@ -352,7 +398,7 @@
 </head>
 <body>
   <div class="page">
-    <h1>収集データ一覧</h1>
+    <h1>{{ page_title }}</h1>
 
     <div class="summary-grid">
       <div class="summary-card">
@@ -368,7 +414,7 @@
         <div class="value">{{ type_counts.get("news", 0) }}</div>
         {% if news_category_shortcuts %}
           <div class="event-nav-popover">
-            <div class="event-nav-title">小カテゴリでニュース表示</div>
+            <div class="event-nav-title">中分類・小分類でニュース表示</div>
             <div class="event-nav-list">
               {% for tab in news_category_shortcuts %}
                 <a class="event-nav-link" href="{{ tab.href }}">
@@ -406,6 +452,23 @@
     <div class="layout">
       <div class="panel filter-panel">
         <h2>フィルタ</h2>
+        <div class="archive-panel">
+          <h3>年月アーカイブ</h3>
+          <div class="field">
+            <a href="{{ archive_index_href }}">月別アーカイブ一覧</a>
+          </div>
+          {% if archive_month_label %}
+            <div class="collector-help">現在の表示対象: {{ archive_month_label }}</div>
+          {% endif %}
+          <div class="archive-list">
+            {% for archive in archive_links[:24] %}
+              <a class="archive-link {% if archive_month == archive.month %}active{% endif %}" href="{{ archive.href }}">
+                <span>{{ archive.label }}</span>
+                <span>{{ archive.count }}件</span>
+              </a>
+            {% endfor %}
+          </div>
+        </div>
         <div class="collector-panel">
           <h3>キーワード収集</h3>
           <p class="collector-help">任意のキーワードを入力すると、Google News RSS と Web 検索結果のリンク先ページを直接取得してDBへ保存します。</p>
@@ -434,7 +497,7 @@
             </div>
           </form>
         </div>
-        <form method="get" action="/">
+        <form method="get" action="{{ filter_form_action }}">
           <div class="field">
             <label for="q">キーワード</label>
             <input type="text" name="q" id="q" value="{{ current_q }}">
@@ -480,6 +543,18 @@
 
           {% if current_source_type == "news" %}
           <div class="field">
+            <label for="news_region">ニュース中分類</label>
+            <select name="news_region" id="news_region">
+              <option value="">すべて</option>
+              {% for region in available_news_regions %}
+                <option value="{{ region }}" {% if current_news_region == region %}selected{% endif %}>
+                  {{ region }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
             <label for="news_category">ニュース小分類</label>
             <select name="news_category" id="news_category">
               <option value="">すべて</option>
@@ -516,7 +591,7 @@
           </div>
 
           <div class="field">
-            <a href="/">リセット</a>
+            <a href="{{ reset_href }}">リセット</a>
           </div>
         </form>
       </div>
@@ -575,6 +650,12 @@
                   <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
                   {% if item.is_new %}
                   <span class="badge new">NEW</span>
+                  {% endif %}
+                  {% if item.source_type == "news" and item.news_region %}
+                  <span class="meta-text">{{ item.news_region }}</span>
+                  {% endif %}
+                  {% if item.source_type == "news" and item.news_category %}
+                  <span class="meta-text">{{ item.news_category }}</span>
                   {% endif %}
                   <span class="meta-text">{{ item.source_name }}</span>
                   <span class="meta-text">{{ item.published_at }}</span>

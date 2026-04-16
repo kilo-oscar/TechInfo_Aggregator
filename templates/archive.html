@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>年月アーカイブ</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f7fb;
+      color: #222;
+    }
+
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 20px 0;
+      font-size: 36px;
+    }
+
+    .actions {
+      margin-bottom: 18px;
+    }
+
+    .actions a {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: white;
+      border: 1px solid #dbe4f0;
+      text-decoration: none;
+      color: #1d4ed8;
+    }
+
+    .archive-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .archive-card {
+      display: block;
+      padding: 16px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid #dbe4f0;
+      text-decoration: none;
+      color: #1f2937;
+    }
+
+    .archive-card:hover {
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
+
+    .archive-label {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .archive-count {
+      font-size: 14px;
+      color: #475569;
+    }
+
+    .empty {
+      padding: 28px;
+      border-radius: 12px;
+      border: 1px solid #dbe4f0;
+      background: white;
+      color: #64748b;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>年月アーカイブ</h1>
+    <div class="actions">
+      <a href="/">一覧へ戻る</a>
+    </div>
+
+    {% if archive_links %}
+      <div class="archive-grid">
+        {% for archive in archive_links %}
+          <a class="archive-card" href="{{ archive.href }}">
+            <div class="archive-label">{{ archive.label }}</div>
+            <div class="archive-count">{{ archive.count }}件</div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">アーカイブ可能な公開日データがありません。</div>
+    {% endif %}
+  </div>
+</body>
+</html>

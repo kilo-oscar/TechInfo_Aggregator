@@ -10,7 +10,7 @@ from pathlib import Path
 from collections import OrderedDict
 
 from app import app
-from crawler_utils import canonicalize_url, normalize_text
+from crawler_utils import canonicalize_url, normalize_text, parse_date_safe
 from models import RawItem
 
 
@@ -65,14 +65,21 @@ def save_state(sent_keys: set[str]) -> None:
 def collect_new_items() -> tuple[list[RawItem], set[str]]:
     state = load_state()
     sent_keys = set(state["sent_keys"])
+    today = datetime.now().date()
 
     items = RawItem.query.order_by(RawItem.fetched_at.desc(), RawItem.id.desc()).all()
     new_items: list[RawItem] = []
+    run_seen_keys: set[str] = set()
 
     for item in items:
-        key = item_notification_key(item)
-        if key in sent_keys:
+        published_dt = parse_date_safe(item.published_at)
+        if published_dt is None or published_dt.date() != today:
             continue
+
+        key = item_notification_key(item)
+        if key in sent_keys or key in run_seen_keys:
+            continue
+        run_seen_keys.add(key)
         new_items.append(item)
 
     return new_items, sent_keys
@@ -183,17 +190,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    today_label = datetime.now().strftime("%Y-%m-%d")
 
     with app.app_context():
         new_items, sent_keys = collect_new_items()
 
         if not new_items:
-            print("gmail skipped: no new items")
+            print(f"gmail skipped: no items with published_at={today_label} or all already notified")
             return
 
         if args.limit and args.limit > 0:
             new_items = new_items[: args.limit]
 
+        print(f"gmail target items: published_at={today_label}, count={len(new_items)}")
         if send_gmail(new_items, dry_run=args.dry_run) and not args.dry_run:
             sent_keys.update(item_notification_key(item) for item in new_items)
             save_state(sent_keys)

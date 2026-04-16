@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, has_request_context
 from sqlalchemy import or_, case
 from sqlalchemy import text
 from bs4 import BeautifulSoup
@@ -50,6 +50,96 @@ def clean_summary(text: Optional[str], max_length: int = 160) -> str:
     if len(plain) > max_length:
         return plain[:max_length] + "..."
     return plain
+
+
+def normalize_archive_month(value: str) -> str:
+    normalized = (value or "").strip()
+    if re.fullmatch(r"20\d{2}-(0[1-9]|1[0-2])", normalized):
+        return normalized
+    return ""
+
+
+def format_archive_month_label(archive_month: str) -> str:
+    if not archive_month:
+        return ""
+    year, month = archive_month.split("-", 1)
+    return f"{year}年{int(month)}月"
+
+
+def build_archive_links() -> list[dict]:
+    rows = (
+        db.session.query(
+            db.func.substr(RawItem.published_at, 1, 7).label("archive_month"),
+            db.func.count(RawItem.id),
+        )
+        .filter(
+            RawItem.published_at.isnot(None),
+            RawItem.published_at != "",
+            RawItem.published_at.op("GLOB")("20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]"),
+        )
+        .group_by("archive_month")
+        .order_by(text("archive_month DESC"))
+        .all()
+    )
+    links = []
+    for archive_month, count in rows:
+        normalized_month = normalize_archive_month(archive_month or "")
+        if not normalized_month:
+            continue
+        links.append({
+            "month": normalized_month,
+            "label": format_archive_month_label(normalized_month),
+            "count": count,
+            "href": (
+                url_for("archive_month_page", archive_month=normalized_month)
+                if has_request_context()
+                else f"/archive/{normalized_month}"
+            ),
+        })
+    return links
+
+
+def build_display_category_priority():
+    return case(
+        (RawItem.source_type == "event", 0),
+        (RawItem.source_name.like("Startup /%"), 2),
+        (RawItem.source_type == "news", 1),
+        (RawItem.source_type == "paper", 3),
+        else_=4,
+    )
+
+
+def get_item_display_category_priority(item: RawItem) -> int:
+    source_name = (item.source_name or "").strip()
+    if item.source_type == "event":
+        return 0
+    if source_name.startswith("Startup /"):
+        return 2
+    if item.source_type == "news":
+        return 1
+    if item.source_type == "paper":
+        return 3
+    return 4
+
+
+def sort_display_items(items: list[RawItem], order: str) -> list[RawItem]:
+    if not items:
+        return items
+
+    direction = 1 if order == "asc" else -1
+
+    def sort_key(item: RawItem):
+        parsed = parse_date_safe(item.published_at)
+        date_ordinal = parsed.date().toordinal() if parsed else (-1 if order != "asc" else 9999999)
+        fetched_ts = item.fetched_at.timestamp() if item.fetched_at else 0.0
+        return (
+            date_ordinal * direction,
+            get_item_display_category_priority(item),
+            fetched_ts * direction,
+            (item.id or 0) * direction,
+        )
+
+    return sorted(items, key=sort_key)
 
 
 def get_latest_crawl_batch_id() -> str:
@@ -187,6 +277,7 @@ def build_country_tabs(
     selected_country: str,
     groups: list[dict],
     args,
+    base_path: str,
 ) -> list[dict]:
     if source_type != "event" or not groups:
         return []
@@ -203,7 +294,7 @@ def build_country_tabs(
         "country": "",
         "count": total_count,
         "active": selected_country == "",
-        "href": "/?" + urlencode(base_params),
+        "href": base_path + ("?" + urlencode(base_params) if base_params else ""),
     }]
 
     for group in groups:
@@ -213,7 +304,7 @@ def build_country_tabs(
             "country": group["country"],
             "count": len(group["items"]),
             "active": selected_country == group["country"],
-            "href": "/?" + urlencode(params),
+            "href": base_path + ("?" + urlencode(params) if params else ""),
         })
     return tabs
 
@@ -222,6 +313,7 @@ def build_event_country_shortcuts(
     selected_country: str,
     groups: list[dict],
     args,
+    base_path: str,
 ) -> list[dict]:
     if not groups:
         return []
@@ -241,7 +333,7 @@ def build_event_country_shortcuts(
             "label": group["country"],
             "count": len(group["items"]),
             "active": selected_country == group["country"],
-            "href": "/?" + urlencode(params),
+            "href": base_path + ("?" + urlencode(params) if params else ""),
         })
     return shortcuts
 
@@ -252,33 +344,87 @@ def extract_news_category(item: RawItem) -> str:
 
     source_name = (item.source_name or "").strip()
     if source_name.startswith("Google News / Physical AI"):
-        return "Physical AI"
+        return "Physical-AI"
     if source_name.startswith("Google News / Robot Makers"):
         return "Robot Makers"
     if source_name.startswith("Google News / Real Haptics"):
-        return "Real Haptics"
+        return "Real-Haptics"
     if source_name.startswith("Startup /"):
         return "Startup"
-    if source_name.startswith("Google News /"):
-        return "Google News"
     return "その他"
 
 
+def extract_news_region(item: RawItem) -> str:
+    if item.source_type != "news":
+        return ""
+
+    blob = " ".join([
+        item.source_name or "",
+        item.title or "",
+        item.raw_summary or "",
+        item.raw_text or "",
+    ]).lower()
+
+    domestic_markers = [
+        "日本", "国内", "東京", "大阪", "名古屋", "福岡", "札幌",
+        "japan", "tokyo", "osaka", "nagoya", "fukuoka", "sapporo",
+        "日経", "itmedia", "monoist", "ascii.jp", "pr times", "prtimes",
+        "ロボスタ", "robotstart", "robostart", "impress", "マイナビ", "共同通信",
+        "nvidia | japan blog", "japan blog",
+    ]
+    overseas_markers = [
+        "united states", "u.s.", "usa", "europe", "germany", "france", "uk",
+        "china", "korea", "singapore", "taiwan", "canada", "australia",
+        "reuters", "bloomberg", "techcrunch", "the robot report", "venturebeat",
+        "ieee spectrum", "robotics 24/7", "siliconangle", "crn", "zdnet", "forbes",
+    ]
+
+    if any(marker in blob for marker in domestic_markers):
+        return "日本国内の記事"
+    if any(marker in blob for marker in overseas_markers):
+        return "海外の記事"
+
+    if any("\u3040" <= ch <= "\u30ff" or "\u4e00" <= ch <= "\u9fff" for ch in blob):
+        return "日本国内の記事"
+    return "海外の記事"
+
+
 def build_news_category_groups(items: list[RawItem]) -> list[dict]:
-    groups: dict[str, list[RawItem]] = {}
+    groups: dict[tuple[str, str], list[RawItem]] = {}
     for item in items:
         category = extract_news_category(item)
+        region = extract_news_region(item)
+        item.news_region = region
         item.news_category = category
-        groups.setdefault(category, []).append(item)
+        groups.setdefault((region, category), []).append(item)
 
-    ordered_categories = sorted(
+    region_order = {
+        "日本国内の記事": 0,
+        "海外の記事": 1,
+    }
+    category_order = {
+        "Physical-AI": 0,
+        "Robot Makers": 1,
+        "Real-Haptics": 2,
+        "Startup": 3,
+        "その他": 9,
+    }
+    ordered_keys = sorted(
         groups.keys(),
-        key=lambda name: (name == "その他", name),
+        key=lambda value: (
+            region_order.get(value[0], 9),
+            category_order.get(value[1], 9),
+            value[0],
+            value[1],
+        ),
     )
-    return [{"category": category, "items": groups[category]} for category in ordered_categories]
+    return [
+        {"region": region, "category": category, "items": groups[(region, category)]}
+        for region, category in ordered_keys
+    ]
 
 
-def build_news_category_shortcuts(selected_category: str, groups: list[dict], args) -> list[dict]:
+def build_news_category_shortcuts(selected_region: str, selected_category: str, groups: list[dict], args, base_path: str) -> list[dict]:
     if not groups:
         return []
 
@@ -290,12 +436,16 @@ def build_news_category_shortcuts(selected_category: str, groups: list[dict], ar
 
     shortcuts = []
     for group in groups:
-        params = base_params + [("source_type", "news"), ("news_category", group["category"])]
+        params = base_params + [
+            ("source_type", "news"),
+            ("news_region", group["region"]),
+            ("news_category", group["category"]),
+        ]
         shortcuts.append({
-            "label": group["category"],
+            "label": f'{group["region"]} / {group["category"]}',
             "count": len(group["items"]),
-            "active": selected_category == group["category"],
-            "href": "/?" + urlencode(params),
+            "active": selected_region == group["region"] and selected_category == group["category"],
+            "href": base_path + ("?" + urlencode(params) if params else ""),
         })
     return shortcuts
 
@@ -553,12 +703,12 @@ def attach_event_hierarchy(items: list[RawItem], query_text: str = "") -> list[R
     return visible_items
 
 
-@app.route("/")
-def list_raw_items():
+def render_item_list(*, archive_month: str = "", page_title: str = "収集データ一覧", base_path: str = "/"):
     q = request.args.get("q", "").strip()
     source_name = request.args.get("source_name", "").strip()
     source_type = request.args.get("source_type", "").strip()
     event_country = request.args.get("event_country", "").strip()
+    news_region = request.args.get("news_region", "").strip()
     news_category = request.args.get("news_category", "").strip()
     sort = request.args.get("sort", "published_at").strip()
     order = request.args.get("order", "desc").strip()
@@ -577,16 +727,20 @@ def list_raw_items():
     if source_name:
         query = query.filter(RawItem.source_name == source_name)
 
+    if archive_month:
+        query = query.filter(RawItem.published_at.like(f"{archive_month}-%"))
+
     event_preview_query = query.filter(RawItem.source_type == "event")
     event_preview_items = event_preview_query.all()
     event_preview_items = dedupe_event_items(event_preview_items)
     event_preview_groups = build_event_groups(event_preview_items) if event_preview_items else []
-    event_country_shortcuts = build_event_country_shortcuts(event_country, event_preview_groups, request.args)
+    event_country_shortcuts = build_event_country_shortcuts(event_country, event_preview_groups, request.args, base_path)
 
     news_preview_query = query.filter(RawItem.source_type == "news")
     news_preview_items = news_preview_query.all()
     news_category_groups = build_news_category_groups(news_preview_items) if news_preview_items else []
-    news_category_shortcuts = build_news_category_shortcuts(news_category, news_category_groups, request.args)
+    news_category_shortcuts = build_news_category_shortcuts(news_region, news_category, news_category_groups, request.args, base_path)
+    summary_query = query
 
     if source_type:
         query = query.filter(RawItem.source_type == source_type)
@@ -600,28 +754,28 @@ def list_raw_items():
     }
 
     sort_column = sortable_columns.get(sort, RawItem.published_at)
-    new_priority = case((RawItem.is_new.is_(True), 0), else_=1)
+    display_category_priority = build_display_category_priority()
 
     if sort == "published_at":
         published_is_empty = case((RawItem.published_at.is_(None), 1), (RawItem.published_at == "", 1), else_=0)
         if order == "asc":
             query = query.order_by(
-                new_priority.asc(),
                 published_is_empty.asc(),
                 RawItem.published_at.asc(),
+                display_category_priority.asc(),
                 RawItem.fetched_at.asc(),
             )
         else:
             query = query.order_by(
-                new_priority.asc(),
                 published_is_empty.asc(),
                 RawItem.published_at.desc(),
+                display_category_priority.asc(),
                 RawItem.fetched_at.desc(),
             )
     elif order == "asc":
-        query = query.order_by(new_priority.asc(), sort_column.asc(), RawItem.fetched_at.desc())
+        query = query.order_by(sort_column.asc(), display_category_priority.asc(), RawItem.fetched_at.desc())
     else:
-        query = query.order_by(new_priority.asc(), sort_column.desc(), RawItem.fetched_at.desc())
+        query = query.order_by(sort_column.desc(), display_category_priority.asc(), RawItem.fetched_at.desc())
 
     items = query.all()
     if items and all(item.source_type == "event" for item in items):
@@ -629,10 +783,20 @@ def list_raw_items():
         items = attach_event_hierarchy(items, q)
     elif items and all(item.source_type == "news" for item in items):
         news_groups = build_news_category_groups(items)
+        if news_region:
+            news_groups = [group for group in news_groups if group["region"] == news_region]
         if news_category:
-            items = [item for group in news_groups if group["category"] == news_category for item in group["items"]]
+            news_groups = [group for group in news_groups if group["category"] == news_category]
+        if news_region or news_category:
+            items = [item for group in news_groups for item in group["items"]]
+
+    if sort == "published_at":
+        items = sort_display_items(items, order)
 
     for item in items:
+        if item.source_type == "news":
+            item.news_region = extract_news_region(item)
+            item.news_category = extract_news_category(item)
         item.display_summary = clean_summary(item.raw_summary)
         enrich_event_fields(item)
 
@@ -642,7 +806,7 @@ def list_raw_items():
     if items and all(item.source_type == "event" for item in items):
         event_groups = build_event_groups(items)
         available_event_countries = [group["country"] for group in event_groups]
-        event_country_tabs = build_country_tabs(source_type, event_country, event_groups, request.args)
+        event_country_tabs = build_country_tabs(source_type, event_country, event_groups, request.args, base_path)
         if event_country:
             event_groups = [group for group in event_groups if group["country"] == event_country]
             items = [item for group in event_groups for item in group["items"]]
@@ -657,22 +821,32 @@ def list_raw_items():
 
     source_types = [
         row[0]
-        for row in db.session.query(RawItem.source_type)
+        for row in summary_query.with_entities(RawItem.source_type)
         .distinct()
         .order_by(RawItem.source_type.asc())
         .all()
     ]
 
     type_counts_raw = (
-        db.session.query(RawItem.source_type, db.func.count(RawItem.id))
+        summary_query.with_entities(RawItem.source_type, db.func.count(RawItem.id))
         .group_by(RawItem.source_type)
         .all()
     )
     type_counts = {source_type: count for source_type, count in type_counts_raw}
-    total_count = db.session.query(db.func.count(RawItem.id)).scalar()
+    total_count = summary_query.with_entities(db.func.count(RawItem.id)).scalar()
     current_list_url = request.full_path if request.query_string else request.path
     if current_list_url.endswith("?"):
         current_list_url = current_list_url[:-1]
+    archive_links = build_archive_links()
+    news_region_order = {
+        "日本国内の記事": 0,
+        "海外の記事": 1,
+    }
+    filtered_news_categories = [
+        group["category"]
+        for group in news_category_groups
+        if (not news_region or group["region"] == news_region)
+    ]
     collection_keyword = request.args.get("collection_keyword", "").strip()
     collection_inserted = request.args.get("collection_inserted", "").strip()
     collection_skipped = request.args.get("collection_skipped", "").strip()
@@ -681,6 +855,13 @@ def list_raw_items():
 
     return render_template(
         "list.html",
+        page_title=page_title,
+        archive_month=archive_month,
+        archive_month_label=format_archive_month_label(archive_month),
+        archive_links=archive_links,
+        filter_form_action=base_path,
+        reset_href=base_path,
+        archive_index_href=url_for("archive_index"),
         items=items,
         source_names=source_names,
         source_types=source_types,
@@ -688,6 +869,7 @@ def list_raw_items():
         current_source_name=source_name,
         current_source_type=source_type,
         current_event_country=event_country,
+        current_news_region=news_region,
         current_news_category=news_category,
         current_sort=sort,
         current_order=order,
@@ -698,13 +880,40 @@ def list_raw_items():
         available_event_countries=available_event_countries,
         event_country_shortcuts=event_country_shortcuts,
         news_category_shortcuts=news_category_shortcuts,
-        available_news_categories=[group["category"] for group in news_category_groups],
+        available_news_regions=sorted(
+            {group["region"] for group in news_category_groups if group["region"]},
+            key=lambda value: (news_region_order.get(value, 9), value),
+        ),
+        available_news_categories=sorted(set(filtered_news_categories)),
         collection_keyword=collection_keyword,
         collection_inserted=collection_inserted,
         collection_skipped=collection_skipped,
         collection_status=collection_status,
         collection_sources=collection_sources,
         current_list_url=current_list_url,
+    )
+
+
+@app.route("/")
+def list_raw_items():
+    return render_item_list()
+
+
+@app.route("/archive")
+def archive_index():
+    archive_links = build_archive_links()
+    return render_template("archive.html", archive_links=archive_links)
+
+
+@app.route("/archive/<archive_month>")
+def archive_month_page(archive_month):
+    normalized_month = normalize_archive_month(archive_month)
+    if not normalized_month:
+        return redirect(url_for("archive_index"))
+    return render_item_list(
+        archive_month=normalized_month,
+        page_title=f"{format_archive_month_label(normalized_month)} アーカイブ",
+        base_path=url_for("archive_month_page", archive_month=normalized_month),
     )
 
 
