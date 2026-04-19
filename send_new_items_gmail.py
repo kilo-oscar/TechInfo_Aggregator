@@ -10,7 +10,7 @@ from pathlib import Path
 from collections import OrderedDict
 
 from app import app
-from crawler_utils import canonicalize_url, normalize_text, parse_date_safe
+from crawler_utils import canonicalize_url, normalize_text
 from models import RawItem
 
 
@@ -62,27 +62,47 @@ def save_state(sent_keys: set[str]) -> None:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def collect_new_items() -> tuple[list[RawItem], set[str]]:
+def get_target_crawl_batch_id() -> str:
+    env_batch_id = normalize_text(os.getenv("CRAWL_BATCH_ID"), max_length=100)
+    if env_batch_id:
+        return env_batch_id
+
+    latest_item = (
+        RawItem.query
+        .filter(RawItem.crawl_batch_id.isnot(None), RawItem.crawl_batch_id != "")
+        .order_by(RawItem.fetched_at.desc(), RawItem.id.desc())
+        .first()
+    )
+    if not latest_item:
+        return ""
+    return normalize_text(latest_item.crawl_batch_id, max_length=100)
+
+
+def collect_new_items() -> tuple[list[RawItem], set[str], str]:
     state = load_state()
     sent_keys = set(state["sent_keys"])
-    today = datetime.now().date()
+    target_batch_id = get_target_crawl_batch_id()
 
-    items = RawItem.query.order_by(RawItem.fetched_at.desc(), RawItem.id.desc()).all()
+    if not target_batch_id:
+        return [], sent_keys, ""
+
+    items = (
+        RawItem.query
+        .filter(RawItem.crawl_batch_id == target_batch_id)
+        .order_by(RawItem.fetched_at.desc(), RawItem.id.desc())
+        .all()
+    )
     new_items: list[RawItem] = []
     run_seen_keys: set[str] = set()
 
     for item in items:
-        published_dt = parse_date_safe(item.published_at)
-        if published_dt is None or published_dt.date() != today:
-            continue
-
         key = item_notification_key(item)
         if key in sent_keys or key in run_seen_keys:
             continue
         run_seen_keys.add(key)
         new_items.append(item)
 
-    return new_items, sent_keys
+    return new_items, sent_keys, target_batch_id
 
 
 def format_item_block(item: RawItem) -> str:
@@ -127,31 +147,39 @@ def build_message(sender: str, recipients: list[str], items: list[RawItem]) -> E
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
 
-    groups = group_items_by_source_type(items)
-    body_parts = [
-        f"新規記事: {len(items)}件",
-        "",
-        "カテゴリ別サマリ",
-    ]
-    for source_type, group_items in groups.items():
-        body_parts.append(f"- {source_type_label(source_type)}: {len(group_items)}件")
+    body_parts = []
+    if not items:
+        body_parts.extend([
+            "新着のニュースはありませんでした",
+            "",
+            f"配信時刻: {now_label}",
+        ])
+    else:
+        groups = group_items_by_source_type(items)
+        body_parts.extend([
+            f"新規記事: {len(items)}件",
+            "",
+            "カテゴリ別サマリ",
+        ])
+        for source_type, group_items in groups.items():
+            body_parts.append(f"- {source_type_label(source_type)}: {len(group_items)}件")
 
-    body_parts.extend([
-        "",
-        "カテゴリ別新着一覧",
-        "",
-    ])
+        body_parts.extend([
+            "",
+            "カテゴリ別新着一覧",
+            "",
+        ])
 
-    for source_type, group_items in groups.items():
-        body_parts.append(f"## {source_type_label(source_type)} ({len(group_items)}件)")
-        body_parts.append("")
-        source_name_groups = group_items_by_source_name(group_items)
-        for source_name, source_items in source_name_groups.items():
-            body_parts.append(f"### {source_name} ({len(source_items)}件)")
+        for source_type, group_items in groups.items():
+            body_parts.append(f"## {source_type_label(source_type)} ({len(group_items)}件)")
             body_parts.append("")
-            for item in source_items:
-                body_parts.append(format_item_block(item))
+            source_name_groups = group_items_by_source_name(group_items)
+            for source_name, source_items in source_name_groups.items():
+                body_parts.append(f"### {source_name} ({len(source_items)}件)")
                 body_parts.append("")
+                for item in source_items:
+                    body_parts.append(format_item_block(item))
+                    body_parts.append("")
 
     msg.set_content("\n".join(body_parts).rstrip() + "\n")
     return msg
@@ -190,23 +218,21 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    today_label = datetime.now().strftime("%Y-%m-%d")
 
     with app.app_context():
-        new_items, sent_keys = collect_new_items()
-
-        if not new_items:
-            print(f"gmail skipped: no items with published_at={today_label} or all already notified")
-            return
+        new_items, sent_keys, target_batch_id = collect_new_items()
 
         if args.limit and args.limit > 0:
             new_items = new_items[: args.limit]
 
-        print(f"gmail target items: published_at={today_label}, count={len(new_items)}")
+        print(f"gmail target items: crawl_batch_id={target_batch_id or 'none'}, count={len(new_items)}")
         if send_gmail(new_items, dry_run=args.dry_run) and not args.dry_run:
-            sent_keys.update(item_notification_key(item) for item in new_items)
-            save_state(sent_keys)
-            print(f"gmail state updated: added={len(new_items)}")
+            if new_items:
+                sent_keys.update(item_notification_key(item) for item in new_items)
+                save_state(sent_keys)
+                print(f"gmail state updated: added={len(new_items)}")
+            else:
+                print("gmail sent: no new items message delivered")
 
 
 if __name__ == "__main__":
