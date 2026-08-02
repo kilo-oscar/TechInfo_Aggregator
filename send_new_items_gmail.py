@@ -3,14 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import smtplib
-from datetime import datetime
+from datetime import date, datetime
 from email.message import EmailMessage
 from pathlib import Path
 from collections import OrderedDict
 
 from app import app
-from crawler_utils import canonicalize_url, normalize_text
+from crawler_utils import canonicalize_url, normalize_text, parse_date_safe
 from models import RawItem
 
 
@@ -78,13 +79,34 @@ def get_target_crawl_batch_id() -> str:
     return normalize_text(latest_item.crawl_batch_id, max_length=100)
 
 
-def collect_new_items() -> tuple[list[RawItem], set[str], str]:
+def get_crawl_execution_date(target_batch_id: str) -> date:
+    batch_id = normalize_text(target_batch_id, max_length=100)
+    match = re.search(r"(\d{8})", batch_id)
+    if match:
+        try:
+            return datetime.strptime(match.group(1), "%Y%m%d").date()
+        except ValueError:
+            pass
+    return datetime.now().date()
+
+
+def is_same_day_published_item(item: RawItem, crawl_execution_date: date) -> bool:
+    published_dt = parse_date_safe(item.published_at)
+    if published_dt is None:
+        return False
+
+    return published_dt.date() == crawl_execution_date
+
+
+def collect_new_items() -> tuple[list[RawItem], set[str], str, date | None]:
     state = load_state()
     sent_keys = set(state["sent_keys"])
     target_batch_id = get_target_crawl_batch_id()
 
     if not target_batch_id:
-        return [], sent_keys, ""
+        return [], sent_keys, "", None
+
+    crawl_execution_date = get_crawl_execution_date(target_batch_id)
 
     items = (
         RawItem.query
@@ -96,13 +118,16 @@ def collect_new_items() -> tuple[list[RawItem], set[str], str]:
     run_seen_keys: set[str] = set()
 
     for item in items:
+        if not is_same_day_published_item(item, crawl_execution_date):
+            continue
+
         key = item_notification_key(item)
         if key in sent_keys or key in run_seen_keys:
             continue
         run_seen_keys.add(key)
         new_items.append(item)
 
-    return new_items, sent_keys, target_batch_id
+    return new_items, sent_keys, target_batch_id, crawl_execution_date
 
 
 def format_item_block(item: RawItem) -> str:
@@ -220,12 +245,16 @@ def main() -> None:
     args = parse_args()
 
     with app.app_context():
-        new_items, sent_keys, target_batch_id = collect_new_items()
+        new_items, sent_keys, target_batch_id, crawl_execution_date = collect_new_items()
 
         if args.limit and args.limit > 0:
             new_items = new_items[: args.limit]
 
-        print(f"gmail target items: crawl_batch_id={target_batch_id or 'none'}, count={len(new_items)}")
+        crawl_execution_date_label = crawl_execution_date.isoformat() if crawl_execution_date else "none"
+        print(
+            f"gmail target items: crawl_batch_id={target_batch_id or 'none'}, "
+            f"crawl_execution_date={crawl_execution_date_label}, published_at_match=crawl_execution_date, count={len(new_items)}"
+        )
         if send_gmail(new_items, dry_run=args.dry_run) and not args.dry_run:
             if new_items:
                 sent_keys.update(item_notification_key(item) for item in new_items)
