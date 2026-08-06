@@ -41,6 +41,27 @@ ORGANIZER_FOCUSED_QUERIES = [
     "site:nikkan.co.jp 日本ロボット工業会 展示会",
 ]
 
+CORPORATE_EVENT_QUERIES = [
+    'site:aws.amazon.com/jp "Physical AI" イベント OR 展示 OR 勉強会',
+    'site:aws.amazon.com/jp robotics "AWS Summit Japan" 展示',
+    'site:nvidia.com/ja-jp/events "Physical AI" OR ロボティクス',
+    'site:events.microsoft.com/ja-jp robotics OR "Physical AI" Japan',
+    'site:cloud.google.com/events/ja robotics OR "Physical AI"',
+    'site:global.toyota/jp フィジカルAI イベント OR 展示',
+    'site:global.honda/jp ロボット AI イベント OR 展示',
+    'site:sony.com/ja ロボティクス AI イベント OR 展示',
+    'site:fujitsu.com/jp フィジカルAI イベント OR 展示',
+    'site:nec.com/ja ロボティクス AI イベント OR 展示',
+    'site:hitachi.co.jp フィジカルAI イベント OR 展示',
+    'site:mitsubishielectric.co.jp ロボット AI イベント OR 展示',
+    'site:fanuc.co.jp ロボット AI イベント OR 展示会',
+    'site:yaskawa.co.jp ロボット AI イベント OR 展示会',
+    'site:khi.co.jp ロボット AI イベント OR 展示',
+    'site:omron.com/jp/ja ロボット AI イベント OR 展示',
+    'site:softbank.jp フィジカルAI イベント OR 展示',
+    'site:nttdata.com/jp/ja ロボティクス AI イベント OR 展示',
+]
+
 DEFAULT_QUERIES = [
     "physical AI exhibition",
     "physical AI expo",
@@ -79,7 +100,7 @@ DEFAULT_QUERIES = [
     "国際ロボット展 日本ロボット工業会 日刊工業新聞",
     "日本ロボット工業会 展示会 ロボット",
     "日刊工業新聞 ロボット 展示会",
-] + ORGANIZER_FOCUSED_QUERIES
+] + ORGANIZER_FOCUSED_QUERIES + CORPORATE_EVENT_QUERIES
 
 JAPAN_EVENT_SEED_URLS = [
     "https://irex.nikkan.co.jp/",
@@ -145,7 +166,6 @@ NEGATIVE_KEYWORDS = [
     "job",
     "career",
     "course",
-    "webinar",
     "youtube",
     "facebook",
     "instagram",
@@ -162,6 +182,53 @@ NEGATIVE_KEYWORDS = [
     "ホテル",
     "旅行",
     "観光",
+]
+
+CORPORATE_EVENT_DOMAINS = {
+    "aws.amazon.com",
+    "amazon.com",
+    "nvidia.com",
+    "events.microsoft.com",
+    "microsoft.com",
+    "cloud.google.com",
+    "google.com",
+    "global.toyota",
+    "global.honda",
+    "sony.com",
+    "fujitsu.com",
+    "nec.com",
+    "hitachi.co.jp",
+    "mitsubishielectric.co.jp",
+    "fanuc.co.jp",
+    "yaskawa.co.jp",
+    "khi.co.jp",
+    "omron.com",
+    "softbank.jp",
+    "nttdata.com",
+}
+
+CORPORATE_HOSTING_KEYWORDS = [
+    "主催", "共催", "hosted by", "organized by", "presented by",
+    "公式イベント", "自社イベント", "開催します", "開催予定",
+    "参加登録", "お申し込み", "register now", "registration",
+    "aws summit", "aws startup loft", "nvidia gtc", "nvidia ai summit",
+    "microsoft ai tour", "google cloud next",
+]
+
+CORPORATE_EVENT_TYPE_KEYWORDS = [
+    "展示会", "展示", "expo", "exhibition", "summit", "conference",
+    "イベント", "event", "セミナー", "webinar", "ウェビナー",
+    "勉強会", "meetup", "workshop", "ハンズオン", "demo day",
+]
+
+CORPORATE_EXHIBITOR_ONLY_KEYWORDS = [
+    "他社主催", "出展します", "出展いたします", "出展のお知らせ",
+    "ブースにお越し", "弊社ブース", "visit our booth", "our booth",
+]
+
+CORPORATE_NAMED_PROGRAM_KEYWORDS = [
+    "aws summit", "aws startup loft", "physical ai 開発支援プログラム",
+    "nvidia gtc", "nvidia ai summit", "microsoft ai tour", "google cloud next",
 ]
 
 SECONDARY_EVENT_HINTS = [
@@ -363,6 +430,8 @@ class ExhibitionCrawler:
         domain = urlparse(result.url).netloc.lower()
         if any(bad in blob for bad in NEGATIVE_KEYWORDS):
             return False
+        if self.is_corporate_event_domain(domain):
+            return self.looks_like_corporate_hosted_event(result.title, result.snippet)
         if not self.is_event_domain_candidate(domain):
             return False
 
@@ -390,6 +459,23 @@ class ExhibitionCrawler:
     def is_official_event_domain(self, domain: str) -> bool:
         domain = (domain or "").lower()
         return domain in TRUSTED_EVENT_DOMAINS
+
+    def is_corporate_event_domain(self, domain: str) -> bool:
+        domain = (domain or "").lower().split(":", 1)[0]
+        return any(domain == allowed or domain.endswith(f".{allowed}") for allowed in CORPORATE_EVENT_DOMAINS)
+
+    def looks_like_corporate_hosted_event(self, *texts: str) -> bool:
+        blob = " ".join(texts).lower()
+        if (
+            any(keyword in blob for keyword in CORPORATE_EXHIBITOR_ONLY_KEYWORDS)
+            and not any(keyword in blob for keyword in CORPORATE_NAMED_PROGRAM_KEYWORDS)
+        ):
+            return False
+        return (
+            any(keyword in blob for keyword in CORPORATE_HOSTING_KEYWORDS)
+            and any(keyword in blob for keyword in CORPORATE_EVENT_TYPE_KEYWORDS)
+            and self.is_robotics_related_event(blob)
+        )
 
     def is_event_domain_candidate(self, domain: str) -> bool:
         domain = (domain or "").lower()
@@ -682,10 +768,15 @@ class ExhibitionCrawler:
         organizer = self.extract_organizer(page_text)
         domain = urlparse(result.url).netloc.lower()
 
-        if not self.is_event_domain_candidate(domain):
+        is_corporate_event = self.is_corporate_event_domain(domain)
+        if not self.is_event_domain_candidate(domain) and not is_corporate_event:
             return None
 
-        if self.looks_like_exhibitor_page(result.url, title, summary) and not self.is_event_site_exhibitor_page(result.url):
+        if (
+            self.looks_like_exhibitor_page(result.url, title, summary)
+            and not self.is_event_site_exhibitor_page(result.url)
+            and not is_corporate_event
+        ):
             return None
 
         if not self.is_robotics_related_event(
@@ -699,6 +790,11 @@ class ExhibitionCrawler:
         ):
             return None
 
+        if is_corporate_event and not self.looks_like_corporate_hosted_event(
+            result.title, result.snippet, title, summary, page_text[:10000], organizer,
+        ):
+            return None
+
         if domain.endswith("nikkan.co.jp"):
             if not self.has_target_organizer(title, summary, page_text[:5000], organizer):
                 return None
@@ -707,10 +803,10 @@ class ExhibitionCrawler:
             return None
 
         raw_payload = {
-            "kind": "exhibition_event",
+            "kind": "corporate_physical_ai_event" if is_corporate_event else "exhibition_event",
             "search_query": result.query,
             "search_engine": result.engine,
-            "page_kind": "event_site_exhibitor" if self.is_event_site_exhibitor_page(result.url) else "event_page",
+            "page_kind": "corporate_hosted_event" if is_corporate_event else ("event_site_exhibitor" if self.is_event_site_exhibitor_page(result.url) else "event_page"),
             "event_name": title,
             "source_domain": domain,
             "official_url": result.url,
@@ -730,7 +826,7 @@ class ExhibitionCrawler:
             event_title = f"{title} [{start_date}]"
 
         return {
-            "source_name": f"Exhibition Search / {domain}",
+            "source_name": f"Corporate Event / {domain}" if is_corporate_event else f"Exhibition Search / {domain}",
             "source_type": "event",
             "title": normalize_text(event_title, max_length=500),
             "url": result.url,

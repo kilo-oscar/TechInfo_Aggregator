@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="384" viewBox="0 0 900 384" role="img" aria-label="分野別件数">
+<rect width="100%" height="100%" rx="16" fill="#ffffff"/>
+<text x="20" y="35" font-size="22" font-weight="bold" fill="#0f172a">分野別件数</text>
+<text x="20" y="82" font-size="15" fill="#1f2937">Physical AI</text>
+<rect x="210" y="65" width="560" height="24" rx="12" fill="#e2e8f0"/>
+<rect x="210" y="65" width="287.8" height="24" rx="12" fill="#2563eb"/>
+<text x="785" y="82" font-size="14" fill="#334155">1962件 (29.3%)</text>
+<text x="20" y="124" font-size="15" fill="#1f2937">Robot Makers</text>
+<rect x="210" y="107" width="560" height="24" rx="12" fill="#e2e8f0"/>
+<rect x="210" y="107" width="54.9" height="24" rx="12" fill="#2563eb"/>
+<text x="785" y="124" font-size="14" fill="#334155">374件 (5.6%)</text>
+<text x="20" y="166" font-size="15" fill="#1f2937">Startup</text>
+<rect x="210" y="149" width="560" height="24" rx="12" fill="#e2e8f0"/>
+<rect x="210" y="149" width="48.7" height="24" rx="12" fill="#2563eb"/>
+<text x="785" y="166" font-size="14" fill="#334155">332件 (5.0%)</text>
+<text x="20" y="208" font-size="15" fill="#1f2937">論文</text>
+<rect x="210" y="191" width="560" height="24" rx="12" fill="#e2e8f0"/>
+<rect x="210" y="191" width="29.1" height="24" rx="12" fill="#2563eb"/>
+<text x="785" y="208" font-size="14" fill="#334155">200件 (3.0%)</text>
+<text x="20" y="250" font-size="15" fill="#1f2937">展示会・イベント</text>
+<rect x="210" y="233" width="560" height="24" rx="12" fill="#e2e8f0"/>
+<rect x="210" y="233" width="1.1" height="24" rx="12" fill="#2563eb"/>
+<text x="785" y="250" font-size="14" fill="#334155">9件 (0.1%)</text>
+<text x="20" y="292" font-size="15" fill="#1f2937">シンクタンク</text>
+<rect x="210" y="275" width="560" height="24" rx="12" fill="#e2e8f0"/>
+<rect x="210" y="275" width="0.6" height="24" rx="12" fill="#2563eb"/>
+<text x="785" y="292" font-size="14" fill="#334155">2件 (0.0%)</text>
+<text x="20" y="334" font-size="15" fill="#1f2937">その他ニュース</text>
+<rect x="210" y="317" width="560" height="24" rx="12" fill="#e2e8f0"/>
+<rect x="210" y="317" width="560.0" height="24" rx="12" fill="#2563eb"/>
+<text x="785" y="334" font-size="14" fill="#334155">3817件 (57.0%)</text>
+</svg>

@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>{{ item.title }}</title>
+  <title>{{ item.translated_title or item.title }}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; }
     .box {
@@ -19,10 +19,22 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .translation { background: #eff6ff; border-color: #93c5fd; }
+    details summary { cursor: pointer; color: #1d4ed8; font-weight: bold; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+    .button { display: inline-block; padding: 9px 13px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #1d4ed8; text-decoration: none; }
   </style>
 </head>
 <body>
-  <h1>{{ item.title }}</h1>
+  <div class="actions"><a class="button" href="/">ホーム</a><a class="button" href="{{ return_to }}">一覧に戻る</a></div>
+  <h1>{{ item.translated_title or item.title }}</h1>
+  {% if item.has_translation %}
+  <p><b>表示言語:</b> 日本語訳</p>
+  <details class="box">
+    <summary>原文の見出しを表示</summary>
+    <h2>{{ item.title }}</h2>
+  </details>
+  {% endif %}
   {% if item.is_new %}
   <p><b>新着:</b> 今回のクローラ実行で取得</p>
   {% endif %}
@@ -50,10 +62,21 @@
   </div>
   {% endif %}
 
+  {% if item.translated_summary %}
+  <div class="box translation">
+    <h3>概要（日本語訳）</h3>
+    <p>{{ item.translated_summary }}</p>
+  </div>
+  <details class="box">
+    <summary>原文の概要を表示</summary>
+    <p>{{ item.raw_summary }}</p>
+  </details>
+  {% else %}
   <div class="box">
-    <h3>raw_summary</h3>
+    <h3>概要</h3>
     <p>{{ item.raw_summary }}</p>
   </div>
+  {% endif %}
 
   {% if item.child_events %}
   <div class="box">
@@ -74,6 +97,6 @@
     <pre>{{ item.raw_text }}</pre>
   </div>
 
-  <p><a href="{{ return_to }}">一覧に戻る</a></p>
+  <div class="actions"><a class="button" href="/">ホーム</a><a class="button" href="{{ return_to }}">一覧に戻る</a></div>
 </body>
 </html>

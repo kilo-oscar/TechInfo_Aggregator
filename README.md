@@ -88,6 +88,29 @@ pip install -r requirements.txt
 pip list
 ```
 
+### APIキー・認証情報を設定する
+
+このプロジェクトで使うAPIキーと認証情報は、プロジェクト直下の `.env` で管理します。
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
+
+`.env` を開いて必要な値を設定します。
+
+```dotenv
+GOOGLE_TRANSLATE_API_KEY="your-google-cloud-api-key"
+GOOGLE_TRANSLATE_MONTHLY_CHARACTER_LIMIT="450000"
+GMAIL_SENDER="your-address@gmail.com"
+GMAIL_APP_PASSWORD="your-gmail-app-password"
+GMAIL_RECIPIENT="recipient@example.com"
+```
+
+Pythonアプリ、各クローラ、日次実行スクリプトは `.env` を自動的に読み込みます。すでにシェルに設定されている同名の環境変数は、Python側では `.env` で上書きしません。
+
+`.env` は `.gitignore` に登録されているためGitには含まれません。`.env.example` にはキー名だけを記載し、実際の値を入れないでください。
+
 ## 5. 展示会クローラを実行する
 
 展示会情報を収集するクローラは次のコマンドで実行できます。
@@ -201,6 +224,19 @@ instance/techinfo.db
 
 このため、単純なサイトトップ巡回よりも `Physical AI` 関連記事の精度を優先した挙動になっています。
 
+### 民間企業主催の Physical AI イベントについて
+
+展示会クローラは、展示会専用サイトに加え、AWS、Microsoft、Google Cloud、NVIDIA、トヨタ、Honda、ソニー、富士通、NEC、日立、三菱電機、FANUC、安川電機、川崎重工、オムロン、SoftBank、NTT DATAなどの公式サイトも検索します。
+
+企業公式ドメインのページのうち、次の条件を満たすものを `event` として保存します。
+
+- Physical AI、ロボティクス、ヒューマノイド、自律移動などに関連する
+- 主催、共催、参加登録、公式イベントなどの記載がある
+- 展示、サミット、カンファレンス、勉強会、ハンズオンなどのイベントである
+- 開催終了日または開催日が実行日以降である
+
+企業が他社の展示会に出展するだけの告知は、従来どおり原則として除外します。保存した企業主催イベントの `source_name` は `Corporate Event / <domain>` となります。
+
 ## 6. Flask アプリを起動する
 
 データ収集後、次のコマンドでアプリを起動します。
@@ -297,6 +333,187 @@ http://127.0.0.1:5000
 
 記事詳細では、保存済みの公開日とは別に、実際のページから取得した公開日も確認できます。両者がずれている場合は警告表示されます。
 
+### 月次分析レポート
+
+次の URL から、公開月ごとの分野別件数と国内・海外の Physical AI 動向を確認できます。
+
+```text
+http://127.0.0.1:5000/reports
+```
+
+各レポートでは次の内容を表示します。
+
+- 月間の収集件数と前月比
+- Physical AI、Robot Makers、論文、展示会、政策などの分野別件数
+- 国内・海外の Physical AI 関連件数
+- 国内・海外で頻出したテーマと代表記事
+- キーワード出現に基づく動向の自動要約
+- 分野別の横棒グラフ、前月比較、国内・海外比率の円グラフ
+- Physical AI、Robot Makers、Startup、論文、展示会、政策などの分野ごとの動向説明
+
+画面から Markdown の表示とダウンロードもできます。Markdown にはSVGグラフを画像として埋め込み、Mermaid版も併記します。コマンドで Markdown ファイルを生成する場合:
+
+```bash
+python3 generate_monthly_report.py 2026-08
+```
+
+出力先は `reports/2026-08.md` です。グラフ画像は `reports/assets/2026-08/` に生成されます。任意の出力先も指定できます。
+
+```bash
+python3 generate_monthly_report.py 2026-08 --output /tmp/techinfo-2026-08.md
+```
+
+集計月は `published_at` を使用します。国内・海外の判定はソース名、地名、媒体名、言語に基づく推定のため、重要なレポートでは代表記事も確認してください。
+
+### 海外記事・論文の日本語翻訳
+
+海外ニュースと、日本語で記載されていない論文の見出し・概要は、Google Cloud Translationで日本語に翻訳してDBへ保存できます。原文は上書きされず、一覧画面の「原文を表示」から記事ごとに切り替えられます。
+
+#### Google Cloud Translation APIキーの取得方法
+
+Google公式の[Cloud Translationセットアップ手順](https://docs.cloud.google.com/translate/docs/setup)に沿って設定します。Google Cloud Translationの利用にはGoogle Cloudプロジェクトと請求先アカウントが必要です。
+
+1. [Google Cloud Console](https://console.cloud.google.com/) にGoogleアカウントでログインします。
+2. 画面上部のプロジェクト選択から、このアプリ用のプロジェクトを新規作成します。例: `techinfo-aggregator`
+3. [Google Cloudのお支払い](https://console.cloud.google.com/billing) を開き、作成したプロジェクトに請求先アカウントを関連付けます。
+4. 対象プロジェクトを選択した状態で、[Cloud Translation API](https://console.cloud.google.com/apis/library/translate.googleapis.com) を開き、「有効にする」を押します。
+5. [APIとサービス → 認証情報](https://console.cloud.google.com/apis/credentials) を開きます。
+6. 「認証情報を作成」→「APIキー」を選びます。
+7. 生成されたAPIキーを一度だけコピーし、「APIキーを編集」へ進みます。
+
+#### APIキーに制限を設定する
+
+APIキーが他のGoogle Cloud APIに使われないよう、Google公式の[APIキー管理手順](https://docs.cloud.google.com/docs/authentication/api-keys)を参考に次の制限を設定します。
+
+1. 「APIの制限」で「キーを制限」を選びます。
+2. 利用可能なAPIは「Cloud Translation API」だけを選びます。
+3. 「保存」を押します。反映に数分かかる場合があります。
+
+このプロジェクトはPythonサーバーからCloud Translation APIを呼び出すため、ブラウザー用のHTTPリファラー制限は使いません。実行PCが固定のグローバルIPアドレスを持つ場合は、追加で「アプリケーションの制限 → IPアドレス」を設定できます。`192.168.x.x`、`10.x.x.x`、`localhost` などのローカルアドレスはGoogle CloudのIP制限に使用できません。固定グローバルIPがない場合でも、Cloud Translation APIのAPI制限は必ず設定してください。
+
+#### `.env` にAPIキーを設定する
+
+プロジェクト直下の `.env` に、コピーしたAPIキーを設定します。
+
+```dotenv
+GOOGLE_TRANSLATE_API_KEY="your-google-cloud-api-key"
+GOOGLE_TRANSLATE_MONTHLY_CHARACTER_LIMIT="450000"
+```
+
+`.env` の権限とGit除外状態を確認します。
+
+```bash
+chmod 600 .env
+git check-ignore .env
+```
+
+`git check-ignore .env` で `.env` が表示されれば、Gitの除外対象です。APIキーをREADME、`.env.example`、ソースコードに直接書かないでください。
+
+#### APIの接続を確認する
+
+次のコマンドは `.env` からAPIキーを読み、`Physical AI` だけを日本語に翻訳します。APIキー自体は表示しません。
+
+```bash
+python3 - <<'PY'
+from env_loader import load_project_env
+from translation_service import GoogleCloudTranslator
+
+load_project_env()
+translator = GoogleCloudTranslator()
+translated, source_language = translator.translate(["Physical AI"])
+print("source_language:", source_language)
+print("translated:", translated[0])
+PY
+```
+
+成功時は次のように表示されます。
+
+```text
+source_language: en
+translated: フィジカル AI
+```
+
+#### 既存データを少量で試す
+
+この環境変数が設定されている場合、新規収集される `news` と `paper` は保存時に自動翻訳されます。APIエラー時も原文の保存は継続します。
+
+既存データの対象数を確認する場合:
+
+```bash
+python3 backfill_japanese_translations.py --dry-run --limit 0
+```
+
+論文をすべて翻訳する場合:
+
+```bash
+python3 backfill_japanese_translations.py --source-type paper --limit 0
+```
+
+海外ニュースを含む全対象を翻訳する場合:
+
+```bash
+python3 backfill_japanese_translations.py --limit 0
+```
+
+大量の翻訳にはGoogle Cloud Translationの利用料金が発生する可能性があるため、最初は `--limit 100` などで翻訳品質と課金量を確認してください。
+
+```bash
+python3 backfill_japanese_translations.py --source-type paper --limit 10
+```
+
+#### 無料利用範囲に抑える
+
+2026年8月時点のGoogle公式料金表では、Cloud Translation BasicとAdvancedのNMTテキスト翻訳に対し、毎月最初の50万文字分に相当する10 USDのクレジットが適用されます。料金や条件は変更される可能性があるため、必ず[Cloud Translation料金表](https://cloud.google.com/translate/pricing)も確認してください。
+
+このプロジェクトでは無料分に余裕を持たせるため、既定の月間上限を45万文字にしています。
+
+```dotenv
+GOOGLE_TRANSLATE_MONTHLY_CHARACTER_LIMIT="450000"
+```
+
+翻訳に成功した入力文字数は `instance/translation_usage.json` に月別で記録されます。今月の使用量と残り文字数は次のコマンドで確認できます。
+
+```bash
+python3 backfill_japanese_translations.py --show-usage
+```
+
+上限を超える翻訳リクエストはAPI送信前に停止します。新規クロール時は翻訳だけをスキップし、原文の保存は継続します。
+
+ただし、このローカル記録で把握できるのはこのアプリからの利用量だけです。同じGoogle CloudプロジェクトやAPIキーを他のアプリで使うと、Google側の合計利用量と一致しません。翻訳専用のGoogle CloudプロジェクトとAPIキーを使い、Google Cloud Console側でも割り当て量、請求額、予算アラートを設定してください。予算アラートは通知であり、課金を自動停止する機能ではありません。
+
+#### トラブルシューティング
+
+- `GOOGLE_TRANSLATE_API_KEY is not configured`: `.env` の値が空でないか確認します。
+- `403 Forbidden` / `PERMISSION_DENIED`: 対象プロジェクト、請求先設定、Cloud Translation APIの有効化、APIキーのAPI制限を確認します。
+- `400 Bad Request` / `API key not valid`: APIキーのコピーミス、余分な空白、引用符の対応を確認します。
+- `429 Too Many Requests` / `RESOURCE_EXHAUSTED`: APIの割り当て量と請求額を確認し、`--limit` で処理数を小さくして再実行します。
+
+### Physical AI Google Trends
+
+Physical AI関連キーワードの過去12か月のGoogle検索関心度を、日本と世界に分けて収集できます。
+
+```bash
+python3 -m crawlers.google_trends_crawler
+```
+
+任意のキーワードを指定する場合:
+
+```bash
+python3 -m crawlers.google_trends_crawler --keywords "Physical AI" "フィジカルAI" "Humanoid Robot"
+```
+
+収集結果は次の画面で表示します。
+
+```text
+http://127.0.0.1:5000/trends
+```
+
+日本と世界のトレンド推移、最新値、平均値、最高値、Google Trends公式Explore画面へのリンクをキーワードごとに確認できます。値は各期間・地域内の最高点を100とする相対値です。
+
+グラフの横軸は日付（左が開始日、右が終了日）で、取得データから日次・週次・月次の間隔を自動判定して表示します。縦軸は検索関心度の相対値（0〜100）です。
+
+Google Trendsの公式APIは現在申請制アルファのため、取得仕様の変更や一時的なレート制限によりデータ取得に失敗する可能性があります。失敗時でも日次処理は継続し、公式Exploreリンクは表示されます。
+
 ## 8. よく使う一連のコマンド
 
 毎回の起動手順をまとめると次の通りです。
@@ -316,6 +533,7 @@ cd ~/ドキュメント/TechInfo_Aggregator
 source .venv/bin/activate
 python3 -m crawlers.arxiv_crawler
 python3 -m crawlers.google_news_crawler
+python3 -m crawlers.google_trends_crawler
 python3 -m crawlers.exhibition_crawler
 python3 -m crawlers.real_haptics_crawler
 python3 -m crawlers.thinktank_crawler
@@ -343,6 +561,7 @@ chmod +x run_daily_crwalers.sh
 - `reset_raw_items.py`
 - `crawlers.arxiv_crawler`
 - `crawlers.google_news_crawler`
+- `crawlers.google_trends_crawler`
 - `crawlers.exhibition_crawler`
 - `crawlers.real_haptics_crawler`
 - `crawlers.thinktank_crawler`
@@ -403,18 +622,18 @@ python3 cleanup_raw_item_duplicates.py
 instance/notified_items.json
 ```
 
-必要な環境変数:
+必要な値を `.env` に設定します。
 
-```bash
-export GMAIL_SENDER="your-address@gmail.com"
-export GMAIL_APP_PASSWORD="your-app-password"
-export GMAIL_RECIPIENT="your-address@gmail.com"
+```dotenv
+GMAIL_SENDER="your-address@gmail.com"
+GMAIL_APP_PASSWORD="your-app-password"
+GMAIL_RECIPIENT="your-address@gmail.com"
 ```
 
 複数宛先に送りたい場合:
 
-```bash
-export GMAIL_RECIPIENT="a@example.com,b@example.com"
+```dotenv
+GMAIL_RECIPIENT="a@example.com,b@example.com"
 ```
 
 Gmail は通常のログインパスワードではなく、Google アカウントのアプリパスワードを使ってください。

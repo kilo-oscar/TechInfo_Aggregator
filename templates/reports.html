@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>月次分析レポート</title>
+  <style>
+    body { margin: 0; background: #f5f7fb; color: #1f2937; font-family: Arial, sans-serif; }
+    .page { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 8px; font-size: 36px; }
+    .lead { color: #64748b; margin-bottom: 22px; }
+    .actions { display: flex; gap: 10px; margin-bottom: 18px; }
+    .button { display: inline-block; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #1d4ed8; text-decoration: none; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .card { padding: 18px; border: 1px solid #dbe4f0; border-radius: 12px; background: white; }
+    .label { font-size: 20px; font-weight: bold; margin-bottom: 6px; }
+    .count { color: #64748b; margin-bottom: 14px; }
+    .card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .card-actions a { padding: 7px 10px; border-radius: 7px; background: #eff6ff; color: #1d4ed8; text-decoration: none; font-size: 14px; }
+    .empty { padding: 28px; border: 1px solid #dbe4f0; border-radius: 12px; background: white; text-align: center; color: #64748b; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>月次分析レポート</h1>
+    <p class="lead">分野別の収集件数と、国内・海外のPhysical AI動向を月ごとに集計します。</p>
+    <div class="actions">
+      <a class="button" href="/">ホーム</a>
+      <a class="button" href="/archive">月別アーカイブ</a>
+    </div>
+    {% if report_months %}
+      <div class="grid">
+        {% for month in report_months %}
+          <section class="card">
+            <div class="label">{{ month.label }}</div>
+            <div class="count">{{ month.count }}件</div>
+            <div class="card-actions">
+              <a href="{{ month.report_href }}">レポートを表示</a>
+              <a href="{{ month.markdown_href }}">Markdownを表示</a>
+              <a href="{{ month.markdown_href }}?download=1">ダウンロード</a>
+            </div>
+          </section>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">レポートを生成できる公開日データがありません。</div>
+    {% endif %}
+  </main>
+</body>
+</html>

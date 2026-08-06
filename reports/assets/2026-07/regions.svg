@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="330" viewBox="0 0 700 330" role="img" aria-label="Physical AIの国内海外比率">
+<rect width="100%" height="100%" rx="16" fill="#ffffff"/>
+<text x="24" y="38" font-size="22" font-weight="bold" fill="#0f172a">Physical AIの国内・海外比率</text>
+<circle cx="175" cy="180" r="92" fill="none" stroke="#e2e8f0" stroke-width="42"/>
+<circle cx="175" cy="180" r="92" fill="none" stroke="#2563eb" stroke-width="42" pathLength="100" stroke-dasharray="35.3 64.7" transform="rotate(-90 175 180)"/>
+<circle cx="175" cy="180" r="92" fill="none" stroke="#f59e0b" stroke-width="42" pathLength="100" stroke-dasharray="64.7 35.3" stroke-dashoffset="-35.3" transform="rotate(-90 175 180)"/>
+<text x="175" y="176" text-anchor="middle" font-size="34" font-weight="bold" fill="#0f172a">2104</text>
+<text x="175" y="203" text-anchor="middle" font-size="15" fill="#64748b">合計</text>
+<circle cx="370" cy="135" r="8" fill="#2563eb"/>
+<text x="390" y="141" font-size="18" fill="#1f2937">国内 743件 (35.3%)</text>
+<circle cx="370" cy="190" r="8" fill="#f59e0b"/>
+<text x="390" y="196" font-size="18" fill="#1f2937">海外 1361件 (64.7%)</text>
+</svg>

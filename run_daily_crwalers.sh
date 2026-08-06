@@ -31,6 +31,13 @@ if [ -f "$HOME/.bashrc" ]; then
   eval "$(bash -ic 'declare -px GMAIL_SENDER GMAIL_APP_PASSWORD GMAIL_RECIPIENT 2>/dev/null | sed "s/^declare -x /export /"' 2>/dev/null)"
 fi
 
+# プロジェクト共通のAPIキー・認証情報を読み込む
+if [ -f "$PROJECT_DIR/.env" ]; then
+  set -a
+  source "$PROJECT_DIR/.env"
+  set +a
+fi
+
 # 仮想環境を有効化
 source "$PROJECT_DIR/.venv/bin/activate"
 
@@ -43,6 +50,7 @@ echo "[INFO] keep existing raw_items and append only non-duplicate items" >> "$L
 # 各クローラを順番に実行
 run_step "arxiv_crawler" python3 -m crawlers.arxiv_crawler
 run_step "google_news_crawler" python3 -m crawlers.google_news_crawler
+run_step "google_trends_crawler" python3 -m crawlers.google_trends_crawler
 run_step "exhibition_crawler" python3 -m crawlers.exhibition_crawler
 run_step "real_haptics_crawler" python3 -m crawlers.real_haptics_crawler
 run_step "thinktank_crawler" python3 -m crawlers.thinktank_crawler

@@ -23,6 +23,17 @@
       font-size: 36px;
     }
 
+    .home-button {
+      display: inline-block;
+      margin-bottom: 16px;
+      padding: 9px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: white;
+      color: #1d4ed8;
+      text-decoration: none;
+    }
+
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -337,6 +348,21 @@
       background: #dc2626;
     }
     .badge.sns_post { background: #db2777; }
+    .badge.translated { background: #0369a1; }
+
+    .language-toggle {
+      padding: 4px 9px;
+      border: 1px solid #93c5fd;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .original-content { display: none; }
+    .result-card.show-original .translated-content { display: none; }
+    .result-card.show-original .original-content { display: inline; }
 
     .summary-text {
       color: #333;
@@ -399,6 +425,7 @@
 <body>
   <div class="page">
     <h1>{{ page_title }}</h1>
+    {% if request.path != "/" %}<a class="home-button" href="/">ホーム</a>{% endif %}
 
     <div class="summary-grid">
       <div class="summary-card">
@@ -456,6 +483,12 @@
           <h3>年月アーカイブ</h3>
           <div class="field">
             <a href="{{ archive_index_href }}">月別アーカイブ一覧</a>
+          </div>
+          <div class="field">
+            <a href="/reports">月次分析レポート</a>
+          </div>
+          <div class="field">
+            <a href="/trends">Physical AI Google Trends</a>
           </div>
           {% if archive_month_label %}
             <div class="collector-help">現在の表示対象: {{ archive_month_label }}</div>
@@ -607,13 +640,14 @@
                 <h3 class="country-heading">{{ group["country"] }} ({{ group["items"]|length }}件)</h3>
                 {% for item in group["items"] %}
                   <div class="result-card">
-                    <h3><a href="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}">{{ item.title }}</a></h3>
+                    <h3><a href="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}"><span class="translated-content">{{ item.display_title }}</span><span class="original-content">{{ item.title }}</span></a></h3>
 
                     <div class="meta-row">
                       <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
                       {% if item.is_new %}
                       <span class="badge new">NEW</span>
                       {% endif %}
+                      {% if item.has_translation %}<span class="badge translated">日本語訳</span><button type="button" class="language-toggle">原文を表示</button>{% endif %}
                       <span class="badge country">{{ item.event_country }}</span>
                       <span class="meta-text">{{ item.source_name }}</span>
                       <span class="meta-text">{{ item.published_at }}</span>
@@ -622,7 +656,7 @@
                       {% endif %}
                     </div>
 
-                    <div class="summary-text">{{ item.display_summary }}</div>
+                    <div class="summary-text"><span class="translated-content">{{ item.display_summary }}</span><span class="original-content">{{ item.original_summary }}</span></div>
 
                     {% if item.child_events %}
                     <div class="child-list">
@@ -644,13 +678,14 @@
           {% else %}
             {% for item in items %}
               <div class="result-card">
-                <h3><a href="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}">{{ item.title }}</a></h3>
+                <h3><a href="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}"><span class="translated-content">{{ item.display_title }}</span><span class="original-content">{{ item.title }}</span></a></h3>
 
                 <div class="meta-row">
                   <span class="badge {{ item.source_type }}">{{ item.source_type }}</span>
                   {% if item.is_new %}
                   <span class="badge new">NEW</span>
                   {% endif %}
+                  {% if item.has_translation %}<span class="badge translated">日本語訳</span><button type="button" class="language-toggle">原文を表示</button>{% endif %}
                   {% if item.source_type == "news" and item.news_region %}
                   <span class="meta-text">{{ item.news_region }}</span>
                   {% endif %}
@@ -664,7 +699,7 @@
                   {% endif %}
                 </div>
 
-                <div class="summary-text">{{ item.display_summary }}</div>
+                <div class="summary-text"><span class="translated-content">{{ item.display_summary }}</span><span class="original-content">{{ item.original_summary }}</span></div>
 
                 {% if item.child_events %}
                 <div class="child-list">
@@ -690,6 +725,15 @@
   </div>
   <script>
     (() => {
+      document.querySelectorAll('.language-toggle').forEach((button) => {
+        button.addEventListener('click', () => {
+          const card = button.closest('.result-card');
+          if (!card) return;
+          const showOriginal = card.classList.toggle('show-original');
+          button.textContent = showOriginal ? '日本語訳を表示' : '原文を表示';
+        });
+      });
+
       const navCards = document.querySelectorAll('.nav-card');
       if (!navCards.length) return;
 

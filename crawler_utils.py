@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from models import db, RawItem
+from translation_service import build_translation_fields
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -185,6 +186,11 @@ def save_raw_item(data: dict) -> bool:
     crawl_batch_id = normalize_text(data.get("crawl_batch_id"), max_length=100) or get_current_crawl_batch_id()
     raw_summary = normalize_text(data.get("raw_summary"), max_length=2000) or None
     raw_text = data.get("raw_text")
+    try:
+        translation_fields = build_translation_fields(data)
+    except Exception as exc:
+        print(f"[WARN] automatic translation failed: {type(exc).__name__}: {exc}")
+        translation_fields = {}
     history_key = item_history_key(
         url=canonical_url,
         source_name=source_name,
@@ -198,6 +204,10 @@ def save_raw_item(data: dict) -> bool:
         if actual_published_at and existing.actual_published_at != actual_published_at:
             existing.actual_published_at = actual_published_at
             changed = True
+        for field_name, value in translation_fields.items():
+            if value and not getattr(existing, field_name, None):
+                setattr(existing, field_name, value)
+                changed = True
         if changed:
             db.session.commit()
         return False
@@ -215,6 +225,10 @@ def save_raw_item(data: dict) -> bool:
         if actual_published_at and duplicate_item.actual_published_at != actual_published_at:
             duplicate_item.actual_published_at = actual_published_at
             changed = True
+        for field_name, value in translation_fields.items():
+            if value and not getattr(duplicate_item, field_name, None):
+                setattr(duplicate_item, field_name, value)
+                changed = True
         if changed:
             db.session.commit()
         return False
@@ -230,6 +244,7 @@ def save_raw_item(data: dict) -> bool:
         is_new=mark_item_seen(history_key),
         raw_summary=raw_summary,
         raw_text=raw_text,
+        **translation_fields,
     )
     db.session.add(item)
     db.session.commit()

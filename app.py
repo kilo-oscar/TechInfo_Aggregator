@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, has_request_context
+from flask import Flask, Response, render_template, request, redirect, url_for, has_request_context
 from sqlalchemy import or_, case
 from sqlalchemy import text
 from bs4 import BeautifulSoup
@@ -11,6 +11,17 @@ from typing import Optional
 from page_date_utils import fetch_actual_published_at
 from crawler_utils import parse_date_safe
 from keyword_collection import KeywordCollector
+from env_loader import load_project_env
+from monthly_reports import (
+    build_monthly_report,
+    normalize_report_month,
+    previous_month,
+    render_field_chart_svg,
+    render_region_chart_svg,
+    render_report_markdown,
+)
+
+load_project_env()
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///techinfo.db"
@@ -34,6 +45,17 @@ def ensure_schema() -> None:
     if "is_new" not in existing_columns:
         db.session.execute(text("ALTER TABLE raw_items ADD COLUMN is_new BOOLEAN DEFAULT 0"))
         db.session.commit()
+    translation_columns = {
+        "translated_title": "VARCHAR(1000)",
+        "translated_summary": "TEXT",
+        "source_language": "VARCHAR(20)",
+        "translation_provider": "VARCHAR(100)",
+        "translated_at": "DATETIME",
+    }
+    for column_name, column_type in translation_columns.items():
+        if column_name not in existing_columns:
+            db.session.execute(text(f"ALTER TABLE raw_items ADD COLUMN {column_name} {column_type}"))
+            db.session.commit()
 
 
 with app.app_context():
@@ -797,7 +819,10 @@ def render_item_list(*, archive_month: str = "", page_title: str = "収集デー
         if item.source_type == "news":
             item.news_region = extract_news_region(item)
             item.news_category = extract_news_category(item)
-        item.display_summary = clean_summary(item.raw_summary)
+        item.has_translation = bool(item.translated_title or item.translated_summary)
+        item.display_title = item.translated_title or item.title
+        item.display_summary = clean_summary(item.translated_summary or item.raw_summary)
+        item.original_summary = clean_summary(item.raw_summary)
         enrich_event_fields(item)
 
     event_groups: list[dict] = []
@@ -917,6 +942,142 @@ def archive_month_page(archive_month):
     )
 
 
+@app.route("/reports")
+def monthly_report_index():
+    report_months = []
+    for archive in build_archive_links():
+        report_months.append({
+            **archive,
+            "report_href": url_for("monthly_report_page", report_month=archive["month"]),
+            "markdown_href": url_for("monthly_report_markdown", report_month=archive["month"]),
+        })
+    return render_template("reports.html", report_months=report_months)
+
+
+def get_monthly_report(report_month: str) -> dict | None:
+    normalized_month = normalize_report_month(report_month)
+    if not normalized_month:
+        return None
+    items = RawItem.query.filter(RawItem.published_at.like(f"{normalized_month}-%")).all()
+    prior_month = previous_month(normalized_month)
+    previous_items = RawItem.query.filter(RawItem.published_at.like(f"{prior_month}-%")).all()
+    return build_monthly_report(normalized_month, items, previous_items)
+
+
+@app.route("/reports/<report_month>")
+def monthly_report_page(report_month):
+    report = get_monthly_report(report_month)
+    if report is None:
+        return redirect(url_for("monthly_report_index"))
+    return render_template("monthly_report.html", report=report)
+
+
+@app.route("/reports/<report_month>.md")
+def monthly_report_markdown(report_month):
+    report = get_monthly_report(report_month)
+    if report is None:
+        return redirect(url_for("monthly_report_index"))
+    markdown = render_report_markdown(report)
+    disposition = "attachment" if request.args.get("download") == "1" else "inline"
+    return Response(
+        markdown,
+        content_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'{disposition}; filename="techinfo-report-{report["month"]}.md"'},
+    )
+
+
+@app.route("/reports/<report_month>/charts/<chart_name>.svg")
+def monthly_report_chart(report_month, chart_name):
+    report = get_monthly_report(report_month)
+    if report is None:
+        return redirect(url_for("monthly_report_index"))
+    renderers = {
+        "fields": render_field_chart_svg,
+        "regions": render_region_chart_svg,
+    }
+    renderer = renderers.get(chart_name)
+    if renderer is None:
+        return Response("chart not found", status=404, content_type="text/plain; charset=utf-8")
+    return Response(renderer(report), content_type="image/svg+xml; charset=utf-8")
+
+
+def build_google_trend_series(item: RawItem) -> dict:
+    try:
+        payload = json.loads(item.raw_text or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    points = payload.get("points", []) if isinstance(payload, dict) else []
+    if not isinstance(points, list):
+        points = []
+    chart_points = []
+    point_dates = []
+    if points:
+        denominator = max(len(points) - 1, 1)
+        for index, point in enumerate(points):
+            try:
+                value = max(0, min(100, int(point.get("value", 0))))
+            except (TypeError, ValueError):
+                value = 0
+            chart_points.append(f"{index / denominator * 100:.2f},{100 - value:.2f}")
+            parsed_date = parse_date_safe(point.get("date"))
+            if parsed_date:
+                point_dates.append(parsed_date)
+    interval_label = "取得間隔"
+    if len(point_dates) >= 2:
+        interval_days = (point_dates[1] - point_dates[0]).days
+        if interval_days <= 1:
+            interval_label = "日次"
+        elif interval_days <= 8:
+            interval_label = "週次"
+        elif interval_days <= 32:
+            interval_label = "月次"
+        else:
+            interval_label = f"{interval_days}日間隔"
+    start_date = point_dates[0].strftime("%Y-%m-%d") if point_dates else ""
+    end_date = point_dates[-1].strftime("%Y-%m-%d") if point_dates else ""
+    return {
+        "item": item,
+        "keyword": payload.get("keyword", item.title),
+        "region": payload.get("region_label", item.source_name),
+        "explore_url": payload.get("explore_url", item.url),
+        "latest_value": payload.get("latest_value"),
+        "average_value": payload.get("average_value"),
+        "peak_value": payload.get("peak_value"),
+        "points": " ".join(chart_points),
+        "point_count": len(points),
+        "start_date": start_date,
+        "end_date": end_date,
+        "interval_label": interval_label,
+        "error": payload.get("error", ""),
+    }
+
+
+@app.route("/trends")
+def google_trends_page():
+    items = (
+        RawItem.query
+        .filter(RawItem.source_type == "trend")
+        .order_by(RawItem.published_at.desc(), RawItem.id.desc())
+        .all()
+    )
+    latest: dict[tuple[str, str], dict] = {}
+    for item in items:
+        series = build_google_trend_series(item)
+        key = (series["keyword"], series["region"])
+        latest.setdefault(key, series)
+    grouped: dict[str, list[dict]] = {}
+    for series in latest.values():
+        grouped.setdefault(series["keyword"], []).append(series)
+    keyword_groups = [
+        {
+            "keyword": keyword,
+            "series": sorted(series, key=lambda value: 0 if value["region"] == "日本" else 1),
+        }
+        for keyword, series in sorted(grouped.items())
+    ]
+    return render_template("trends.html", keyword_groups=keyword_groups)
+
+
 @app.route("/collect-keyword", methods=["POST"])
 def collect_keyword():
     keyword = request.form.get("keyword", "").strip()
@@ -942,6 +1103,7 @@ def collect_keyword():
 @app.route("/raw/<int:item_id>")
 def raw_detail(item_id):
     item = RawItem.query.get_or_404(item_id)
+    item.has_translation = bool(item.translated_title or item.translated_summary)
     return_to = request.args.get("return_to", "").strip()
     if not return_to.startswith("/"):
         return_to = "/"

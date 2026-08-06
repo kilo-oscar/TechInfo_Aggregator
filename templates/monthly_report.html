@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ report.label }} TechInfo月次レポート</title>
+  <style>
+    body { margin: 0; background: #f5f7fb; color: #1f2937; font-family: Arial, sans-serif; line-height: 1.6; }
+    .page { max-width: 1180px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 16px; font-size: 34px; }
+    h2 { margin: 0 0 14px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+    .button { display: inline-block; padding: 9px 13px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #1d4ed8; text-decoration: none; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+    .card, .panel { border: 1px solid #dbe4f0; border-radius: 12px; background: white; padding: 18px; }
+    .card .label { color: #64748b; font-size: 13px; }
+    .card .value { font-size: 28px; font-weight: bold; }
+    .panel { margin-bottom: 20px; }
+    .chart-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-bottom: 20px; }
+    .bar-row { display: grid; grid-template-columns: 155px 1fr 100px; gap: 10px; align-items: center; margin: 9px 0; }
+    .bar-label, .bar-value { font-size: 14px; }
+    .bar-value { text-align: right; font-variant-numeric: tabular-nums; }
+    .bar-track { height: 18px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+    .bar-fill { height: 100%; min-width: 2px; border-radius: inherit; background: linear-gradient(90deg, #2563eb, #38bdf8); }
+    .region-chart { display: flex; align-items: center; justify-content: center; gap: 28px; min-height: 230px; }
+    .donut { position: relative; width: 170px; height: 170px; flex: 0 0 auto; border-radius: 50%; }
+    .donut::after { content: ""; position: absolute; inset: 32px; border-radius: 50%; background: white; }
+    .donut-center { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; text-align: center; }
+    .donut-center strong { font-size: 28px; }
+    .legend-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .domestic-dot { background: #2563eb; }
+    .overseas-dot { background: #f59e0b; }
+    .comparison { display: flex; align-items: end; justify-content: center; gap: 42px; height: 190px; }
+    .column-group { display: grid; width: 100px; height: 100%; align-content: end; justify-items: center; gap: 5px; }
+    .column { width: 60px; min-height: 2px; border-radius: 8px 8px 0 0; background: #94a3b8; }
+    .column.current { background: #2563eb; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    th:not(:first-child), td:not(:first-child) { text-align: right; }
+    .trend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .chip { padding: 5px 9px; border-radius: 999px; background: #eff6ff; color: #1e40af; font-size: 13px; }
+    .articles { padding-left: 20px; }
+    .articles li { margin-bottom: 10px; }
+    .articles a { color: #1d4ed8; }
+    .field-analysis { border-top: 1px solid #e2e8f0; padding: 12px 0; }
+    .field-analysis:first-of-type { border-top: 0; }
+    .field-analysis summary { cursor: pointer; font-size: 18px; font-weight: bold; color: #1e3a8a; }
+    .field-meta { color: #64748b; font-size: 14px; font-weight: normal; margin-left: 8px; }
+    .source-list { color: #475569; font-size: 14px; }
+    .method { color: #475569; font-size: 14px; }
+    @media (max-width: 800px) { .summary-grid, .trend-grid, .chart-grid { grid-template-columns: 1fr; } .bar-row { grid-template-columns: 110px 1fr 82px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>{{ report.label }} TechInfo月次レポート</h1>
+    <div class="actions">
+      <a class="button" href="/">ホーム</a>
+      <a class="button" href="/reports">レポート一覧</a>
+      <a class="button" href="/archive/{{ report.month }}">対象月の記事一覧</a>
+      <a class="button" href="/reports/{{ report.month }}.md">Markdownを表示</a>
+      <a class="button" href="/reports/{{ report.month }}.md?download=1">Markdownをダウンロード</a>
+    </div>
+
+    <section class="summary-grid">
+      <div class="card"><div class="label">対象件数</div><div class="value">{{ report.total }}</div></div>
+      <div class="card"><div class="label">前月件数</div><div class="value">{{ report.previous_total }}</div></div>
+      <div class="card"><div class="label">前月比</div><div class="value">{{ "%+d"|format(report.total_change) }}</div></div>
+      <div class="card"><div class="label">Physical AI関連</div><div class="value">{{ report.physical_ai_total }}</div></div>
+    </section>
+
+    <div class="chart-grid">
+      <section class="panel">
+        <h2>分野別の構成</h2>
+        {% for field in report.fields %}
+          {% if field.count %}
+            <div class="bar-row">
+              <div class="bar-label">{{ field.label }}</div>
+              <div class="bar-track" title="{{ field.count }}件"><div class="bar-fill" style="width: {{ field.bar_width }}%"></div></div>
+              <div class="bar-value">{{ field.count }}件 <small>{{ field.percentage }}%</small></div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </section>
+
+      <section class="panel">
+        <h2>Physical AIの国内・海外比率</h2>
+        {% if report.physical_ai_total %}
+          <div class="region-chart">
+            <div class="donut" style="background: conic-gradient(#2563eb 0 {{ report.domestic_percentage }}%, #f59e0b {{ report.domestic_percentage }}% 100%);">
+              <div class="donut-center"><strong>{{ report.physical_ai_total }}</strong><span>合計</span></div>
+            </div>
+            <div>
+              <div class="legend-row"><span class="legend-dot domestic-dot"></span><span>国内 {{ report.domestic.count }}件 ({{ report.domestic_percentage }}%)</span></div>
+              <div class="legend-row"><span class="legend-dot overseas-dot"></span><span>海外 {{ report.overseas.count }}件 ({{ report.overseas_percentage }}%)</span></div>
+            </div>
+          </div>
+        {% else %}
+          <p>Physical AI関連情報はありません。</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2>月間収集件数の前月比較</h2>
+      {% set scale_total = [report.total, report.previous_total, 1]|max %}
+      <div class="comparison">
+        <div class="column-group"><strong>{{ report.previous_total }}件</strong><div class="column" style="height: {{ report.previous_total / scale_total * 140 }}px"></div><span>{{ report.previous_month }}</span></div>
+        <div class="column-group"><strong>{{ report.total }}件</strong><div class="column current" style="height: {{ report.total / scale_total * 140 }}px"></div><span>{{ report.month }}</span></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>分野別件数</h2>
+      <table>
+        <thead><tr><th>分野</th><th>件数</th><th>前月</th><th>増減</th></tr></thead>
+        <tbody>
+          {% for field in report.fields %}
+            <tr><td>{{ field.label }}</td><td>{{ field.count }}</td><td>{{ field.previous_count }}</td><td>{{ "%+d"|format(field.change) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>分野別の動向</h2>
+      <p class="method">分野名をクリックすると、増減の説明、主要テーマ、代表記事を確認できます。</p>
+      {% for field in report.field_analyses %}
+        <details class="field-analysis" {% if field.count and loop.index <= 4 %}open{% endif %}>
+          <summary>{{ field.label }}<span class="field-meta">{{ field.count }}件 / 前月比 {{ "%+d"|format(field.change) }}</span></summary>
+          <p>{{ field.summary }}</p>
+          {% if field.sources %}
+            <p class="source-list"><strong>主要情報源:</strong> {% for source in field.sources %}{{ source.label }} ({{ source.count }}件){% if not loop.last %}、{% endif %}{% endfor %}</p>
+          {% endif %}
+          {% if field.themes %}
+            <div class="chips">{% for theme in field.themes %}<span class="chip">{{ theme.label }} {{ theme.count }}件</span>{% endfor %}</div>
+          {% endif %}
+          {% if field["items"] %}
+            <h3>代表的な情報</h3>
+            <ul class="articles">
+              {% for item in field["items"] %}
+                <li><a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>{% if item.published_at %} ({{ item.published_at }}){% endif %}<br><small>{{ item.source_name }}</small></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </details>
+      {% endfor %}
+    </section>
+
+    <div class="trend-grid">
+      {% for key, title in [("domestic", "国内Physical AIの動向"), ("overseas", "海外Physical AIの動向")] %}
+        {% set section = report[key] %}
+        <section class="panel">
+          <h2>{{ title }}</h2>
+          <p>{{ section.summary }}</p>
+          {% if section.themes %}
+            <div class="chips">
+              {% for theme in section.themes %}<span class="chip">{{ theme.label }} {{ theme.count }}件</span>{% endfor %}
+            </div>
+          {% endif %}
+          {% if section["items"] %}
+            <h3>代表的な情報</h3>
+            <ul class="articles">
+              {% for item in section["items"] %}
+                <li><a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>{% if item.published_at %} ({{ item.published_at }}){% endif %}<br><small>{{ item.source_name }}</small></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </section>
+      {% endfor %}
+    </div>
+
+    <section class="panel method">
+      <h2>判定方法</h2>
+      <ul>
+        <li>集計月は <code>published_at</code> の年月を使用します。</li>
+        <li>分野は種別、ソース名、タイトル・要約内のキーワードから主分類を1つ付与します。</li>
+        <li>国内・海外は地名、媒体名、言語から推定するため、記事によっては手動確認が必要です。</li>
+        <li>動向文は収集件数とキーワード出現に基づく自動要約です。</li>
+      </ul>
+      <p>生成日時: {{ report.generated_at }}</p>
+    </section>
+  </main>
+</body>
+</html>
