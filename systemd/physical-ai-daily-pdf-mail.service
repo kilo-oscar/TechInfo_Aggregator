@@ -1,0 +1,12 @@
+[Unit]
+Description=Send Physical-AI daily information PDF by Gmail
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ドキュメント/TechInfo_Aggregator
+ExecStart=%h/ドキュメント/TechInfo_Aggregator/.venv/bin/python %h/ドキュメント/TechInfo_Aggregator/send_daily_pdf_gmail.py
+Environment=TZ=Asia/Tokyo
+StandardOutput=append:%h/ドキュメント/TechInfo_Aggregator/logs/daily_pdf_mail.log
+StandardError=append:%h/ドキュメント/TechInfo_Aggregator/logs/daily_pdf_mail.log

@@ -10,6 +10,8 @@ CONFIG = ThinkTankCrawlerConfig(
     ],
     allowed_domains=["dir.co.jp"],
     allowed_path_keywords=["/report/", "/column/", "/pick-up/"],
+    ignored_common_keywords=["ur"],
+    require_direct_keyword_match=True,
     extra_keywords=[
         "physical ai",
         "フィジカルai",

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Physical-AI previous-day PDF Gmail sender at 00:01 JST
+
+[Timer]
+OnCalendar=*-*-* 00:01:00 Asia/Tokyo
+AccuracySec=1s
+Persistent=true
+Unit=physical-ai-daily-pdf-mail.service
+
+[Install]
+WantedBy=timers.target

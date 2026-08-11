@@ -5,6 +5,9 @@ from bs4 import BeautifulSoup
 import json
 from urllib.parse import urlencode
 import re
+from math import ceil
+from datetime import datetime, timedelta
+from collections import Counter
 
 from models import db, RawItem
 from typing import Optional
@@ -20,6 +23,10 @@ from monthly_reports import (
     render_region_chart_svg,
     render_report_markdown,
 )
+from daily_news_pdf import render_daily_news_pdf
+from trend_settings import DEFAULT_TREND_KEYWORDS
+
+EXPORTABLE_SOURCE_TYPES = {"company", "event", "news", "paper", "policy", "thinktank"}
 
 load_project_env()
 
@@ -56,6 +63,16 @@ def ensure_schema() -> None:
         if column_name not in existing_columns:
             db.session.execute(text(f"ALTER TABLE raw_items ADD COLUMN {column_name} {column_type}"))
             db.session.commit()
+    index_statements = [
+        "CREATE INDEX IF NOT EXISTS ix_raw_items_published_at ON raw_items (published_at)",
+        "CREATE INDEX IF NOT EXISTS ix_raw_items_source_type_published_at ON raw_items (source_type, published_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_raw_items_source_name ON raw_items (source_name)",
+        "CREATE INDEX IF NOT EXISTS ix_raw_items_fetched_at ON raw_items (fetched_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_raw_items_crawl_batch_id ON raw_items (crawl_batch_id)",
+    ]
+    for statement in index_statements:
+        db.session.execute(text(statement))
+    db.session.commit()
 
 
 with app.app_context():
@@ -79,6 +96,30 @@ def normalize_archive_month(value: str) -> str:
     if re.fullmatch(r"20\d{2}-(0[1-9]|1[0-2])", normalized):
         return normalized
     return ""
+
+
+def normalize_crawl_date(value: str) -> str:
+    normalized = (value or "").strip()
+    if not re.fullmatch(r"20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])", normalized):
+        return ""
+    try:
+        datetime.strptime(normalized, "%Y-%m-%d")
+    except ValueError:
+        return ""
+    return normalized
+
+
+def build_recent_crawl_dates(limit: int = 14) -> list[dict]:
+    crawl_date = db.func.date(RawItem.fetched_at, "+9 hours")
+    rows = (
+        db.session.query(crawl_date.label("crawl_date"), db.func.count(RawItem.id))
+        .filter(RawItem.fetched_at.isnot(None))
+        .group_by(crawl_date)
+        .order_by(crawl_date.desc())
+        .limit(limit)
+        .all()
+    )
+    return [{"date": date_value, "count": count} for date_value, count in rows if date_value]
 
 
 def format_archive_month_label(archive_month: str) -> str:
@@ -129,39 +170,6 @@ def build_display_category_priority():
         (RawItem.source_type == "paper", 3),
         else_=4,
     )
-
-
-def get_item_display_category_priority(item: RawItem) -> int:
-    source_name = (item.source_name or "").strip()
-    if item.source_type == "event":
-        return 0
-    if source_name.startswith("Startup /"):
-        return 2
-    if item.source_type == "news":
-        return 1
-    if item.source_type == "paper":
-        return 3
-    return 4
-
-
-def sort_display_items(items: list[RawItem], order: str) -> list[RawItem]:
-    if not items:
-        return items
-
-    direction = 1 if order == "asc" else -1
-
-    def sort_key(item: RawItem):
-        parsed = parse_date_safe(item.published_at)
-        date_ordinal = parsed.date().toordinal() if parsed else (-1 if order != "asc" else 9999999)
-        fetched_ts = item.fetched_at.timestamp() if item.fetched_at else 0.0
-        return (
-            date_ordinal * direction,
-            get_item_display_category_priority(item),
-            fetched_ts * direction,
-            (item.id or 0) * direction,
-        )
-
-    return sorted(items, key=sort_key)
 
 
 def get_latest_crawl_batch_id() -> str:
@@ -341,7 +349,7 @@ def build_event_country_shortcuts(
         return []
 
     base_params = []
-    for key in ["q", "source_name", "sort", "order"]:
+    for key in ["q", "source_name", "sort", "order", "crawl_date"]:
         value = (args.get(key) or "").strip()
         if value:
             base_params.append((key, value))
@@ -472,6 +480,143 @@ def build_news_category_shortcuts(selected_region: str, selected_category: str, 
     return shortcuts
 
 
+def build_news_category_menu(selected_category: str, args, base_path: str) -> list[dict]:
+    base_params = []
+    for key in ["q", "source_name", "sort", "order", "news_region", "crawl_date"]:
+        value = (args.get(key) or "").strip()
+        if value:
+            base_params.append((key, value))
+
+    menu_items = []
+    for category in ["", "Physical-AI", "Robot Makers", "Real-Haptics", "Startup", "その他"]:
+        params = base_params + [("source_type", "news")]
+        if category:
+            params.append(("news_category", category))
+        menu_items.append({
+            "label": category or "すべてのニュース",
+            "active": selected_category == category,
+            "href": base_path + "?" + urlencode(params),
+        })
+    return menu_items
+
+
+def extract_paper_categories(raw_text: str) -> list[str]:
+    match = re.search(r"(?:^|\n)Categories:\s*([^\n]+)", raw_text or "")
+    if not match:
+        return []
+    return [category.strip() for category in match.group(1).split(",") if category.strip()]
+
+
+PAPER_CATEGORY_LABELS = {
+    "cs.RO": "ロボティクス",
+    "cs.AI": "人工知能",
+    "cs.CV": "コンピュータビジョン・画像認識",
+    "cs.LG": "機械学習",
+    "eess.SY": "システム・制御工学",
+    "cs.HC": "ヒューマン・コンピュータ・インタラクション",
+    "cs.CL": "自然言語処理",
+    "cs.MA": "マルチエージェントシステム",
+    "cs.GR": "コンピュータグラフィックス",
+    "cs.SE": "ソフトウェア工学",
+    "math.OC": "最適化・制御",
+}
+
+
+def build_paper_category_catalog(paper_query) -> tuple[tuple[str, int], ...]:
+    category_counts: Counter[str] = Counter()
+    rows = (
+        paper_query
+        .filter(RawItem.source_name.ilike("arXiv%"))
+        .with_entities(RawItem.raw_text)
+        .all()
+    )
+    for (raw_text,) in rows:
+        category_counts.update(extract_paper_categories(raw_text or ""))
+    # cs.RO is attached to every collected robotics paper, so supplemental tags
+    # are more useful as subcategories in the menu.
+    category_counts.pop("cs.RO", None)
+    return tuple(category_counts.most_common(10))
+
+
+def build_paper_category_menu(selected_source: str, selected_category: str, args, base_path: str, base_query) -> tuple[list[dict], list[dict]]:
+    paper_query = base_query.filter(RawItem.source_type == "paper")
+    paper_count = paper_query.with_entities(db.func.count(RawItem.id)).scalar() or 0
+    catalog = build_paper_category_catalog(paper_query)
+    base_params = []
+    for key in ["q", "source_name", "sort", "order", "crawl_date"]:
+        value = (args.get(key) or "").strip()
+        if value:
+            base_params.append((key, value))
+
+    menu_items = [{
+        "label": "すべての論文",
+        "value": "",
+        "count": paper_count or 0,
+        "active": not selected_source and not selected_category,
+        "href": base_path + "?" + urlencode(base_params + [("source_type", "paper")]),
+    }]
+    for category, count in catalog:
+        params = base_params + [("source_type", "paper"), ("paper_source", "arxiv"), ("paper_category", category)]
+        menu_items.append({
+            "label": f"{PAPER_CATEGORY_LABELS.get(category, category)}（#{category}）",
+            "value": category,
+            "count": count,
+            "active": selected_source == "arxiv" and selected_category == category,
+            "href": base_path + "?" + urlencode(params),
+        })
+    source_definitions = [
+        ("arxiv", "arXiv系論文", RawItem.source_name.ilike("arXiv%")),
+        ("ieee", "IEEE系論文", RawItem.source_name.ilike("IEEE%")),
+        ("journals", "主要ロボティクス誌", RawItem.source_name.ilike("Journal /%")),
+    ]
+    source_groups = []
+    for source_key, label, condition in source_definitions:
+        count = paper_query.filter(condition).count()
+        params = base_params + [("source_type", "paper"), ("paper_source", source_key)]
+        source_groups.append({
+            "key": source_key,
+            "label": label,
+            "count": count,
+            "active": selected_source == source_key and not selected_category,
+            "href": base_path + "?" + urlencode(params),
+            "categories": menu_items[1:] if source_key == "arxiv" else [],
+        })
+    return menu_items, source_groups
+
+
+def build_thinktank_menu(selected_source_name: str, args, base_path: str, base_query) -> list[dict]:
+    thinktank_query = base_query.filter(RawItem.source_type == "thinktank")
+    rows = (
+        thinktank_query
+        .with_entities(RawItem.source_name, db.func.count(RawItem.id))
+        .group_by(RawItem.source_name)
+        .order_by(RawItem.source_name.asc())
+        .all()
+    )
+    base_params = []
+    for key in ["q", "sort", "order", "crawl_date"]:
+        value = (args.get(key) or "").strip()
+        if value:
+            base_params.append((key, value))
+
+    total_count = sum(count for _source_name, count in rows)
+    menu_items = [{
+        "label": "すべてのシンクタンク",
+        "count": total_count,
+        "active": not selected_source_name,
+        "href": base_path + "?" + urlencode(base_params + [("source_type", "thinktank")]),
+    }]
+    for company_name, count in rows:
+        params = base_params + [("source_type", "thinktank"), ("source_name", company_name)]
+        menu_items.append({
+            "label": company_name,
+            "count": count,
+            "active": selected_source_name == company_name,
+            "href": base_path + "?" + urlencode(params),
+        })
+    return menu_items
+
+
 def parse_event_payload(item: RawItem) -> dict:
     if item.source_type != "event" or not item.raw_text:
         return {}
@@ -501,6 +646,101 @@ def enrich_event_fields(item: RawItem) -> None:
     item.event_end_date = payload.get("end_date", "") if payload else ""
     item.event_location = payload.get("location", "") if payload else ""
     item.event_period = format_event_period(item.event_start_date, item.event_end_date)
+
+
+def shift_calendar_month(calendar_month: str, offset: int) -> str:
+    year, month = (int(part) for part in calendar_month.split("-", 1))
+    month_index = year * 12 + month - 1 + offset
+    return f"{month_index // 12:04d}-{month_index % 12 + 1:02d}"
+
+
+def event_date_range(item: RawItem) -> tuple[Optional[datetime], Optional[datetime]]:
+    start = parse_date_safe(getattr(item, "event_start_date", ""))
+    end = parse_date_safe(getattr(item, "event_end_date", ""))
+    if start and not end:
+        end = start
+    elif end and not start:
+        start = end
+    if start and end and end < start:
+        start, end = end, start
+    return start, end
+
+
+def event_occurs_in_month(item: RawItem, calendar_month: str) -> bool:
+    start, end = event_date_range(item)
+    if not start or not end:
+        return True
+    month_start = datetime.strptime(f"{calendar_month}-01", "%Y-%m-%d")
+    next_month_start = datetime.strptime(f"{shift_calendar_month(calendar_month, 1)}-01", "%Y-%m-%d")
+    return start < next_month_start and end >= month_start
+
+
+def build_event_calendar(items: list[RawItem], calendar_month: str, base_path: str) -> dict:
+    month_start = datetime.strptime(f"{calendar_month}-01", "%Y-%m-%d")
+    next_month_start = datetime.strptime(f"{shift_calendar_month(calendar_month, 1)}-01", "%Y-%m-%d")
+    month_end = next_month_start - timedelta(days=1)
+    events_by_date: dict[str, list[RawItem]] = {}
+    undated_items: list[RawItem] = []
+    country_styles = {
+        "日本": "japan",
+        "米国": "usa",
+        "中国": "china",
+        "韓国": "korea",
+    }
+
+    for item in items:
+        item.event_country_style = country_styles.get(getattr(item, "event_country", ""), "other")
+        start, end = event_date_range(item)
+        if not start or not end:
+            undated_items.append(item)
+            continue
+        current_date = max(start, month_start)
+        last_date = min(end, month_end)
+        while current_date <= last_date:
+            events_by_date.setdefault(current_date.strftime("%Y-%m-%d"), []).append(item)
+            current_date += timedelta(days=1)
+
+    grid_start = month_start - timedelta(days=month_start.weekday())
+    grid_end = month_end + timedelta(days=6 - month_end.weekday())
+    weeks = []
+    current_date = grid_start
+    while current_date <= grid_end:
+        week = []
+        for _ in range(7):
+            date_key = current_date.strftime("%Y-%m-%d")
+            week.append({
+                "date": date_key,
+                "day": current_date.day,
+                "in_month": current_date.month == month_start.month,
+                "events": events_by_date.get(date_key, []),
+            })
+            current_date += timedelta(days=1)
+        weeks.append(week)
+
+    def month_url(target_month: str) -> str:
+        params = request.args.to_dict(flat=True)
+        params["source_type"] = "event"
+        params["calendar_month"] = target_month
+        params.pop("page", None)
+        return f"{base_path}?{urlencode(params)}"
+
+    countries = sorted(
+        {getattr(item, "event_country", "") or "その他" for item in items},
+        key=lambda country: (["日本", "米国", "中国", "韓国", "その他"].index(country)
+                             if country in ["日本", "米国", "中国", "韓国", "その他"] else 99, country),
+    )
+    return {
+        "month": calendar_month,
+        "label": f"{month_start.year}年{month_start.month}月",
+        "weeks": weeks,
+        "undated_items": undated_items,
+        "prev_url": month_url(shift_calendar_month(calendar_month, -1)),
+        "next_url": month_url(shift_calendar_month(calendar_month, 1)),
+        "country_legend": [
+            {"country": country, "style": country_styles.get(country, "other")}
+            for country in countries
+        ],
+    }
 
 
 def extract_event_year(item: RawItem) -> str:
@@ -576,6 +816,7 @@ def classify_event_scope(item: RawItem) -> str:
     child_markers = {
         "nextech-week": [
             "ai・人工知能expo",
+            "フィジカルai expo",
             "ヒューマノイドロボット expo",
             "ヒューマノイドロボットexpo",
             "量子コンピューティングexpo",
@@ -600,6 +841,26 @@ def classify_event_scope(item: RawItem) -> str:
     if "来場案内" in title_blob or "/visit/" in title_blob:
         return "child"
     return "parent"
+
+
+def extract_child_event_identity(item: RawItem) -> str:
+    """Return a stable identity so sibling exhibitions are not deduplicated."""
+    blob = " ".join([item.title or "", item.raw_summary or "", item.url or ""]).lower()
+    identities = [
+        ("physical-ai-expo", ["フィジカルai expo", "フィジカルai展", "/about/physicalai", "/about/ph.html"]),
+        ("humanoid-robot-expo", ["ヒューマノイドロボット expo", "ヒューマノイドロボットexpo", "/visit/hr"]),
+        ("ai-expo", ["ai・人工知能expo", "/visit/ai"]),
+        ("quantum-expo", ["量子コンピューティングexpo"]),
+        ("blockchain-expo", ["ブロックチェーンexpo"]),
+        ("field-dx-expo", ["現場dx expo", "/visit/deskless"]),
+        ("ai-automation-expo", ["ai・業務自動化"]),
+        ("smart-maintenance-expo", ["smart maintenance expo"]),
+    ]
+    for identity, markers in identities:
+        if any(marker in blob for marker in markers):
+            return identity
+    normalized_title = re.sub(r"\[[^\]]+\]|20\d{2}", "", (item.title or "").lower())
+    return re.sub(r"[^a-z0-9一-龥ぁ-んァ-ヶ]+", "-", normalized_title).strip("-")[:80]
 
 
 def event_representation_score(item: RawItem) -> tuple[int, int, int]:
@@ -649,6 +910,8 @@ def dedupe_event_items(items: list[RawItem]) -> list[RawItem]:
         country = extract_event_country(item)
         item.event_country = country
         scope_key = classify_event_scope(item)
+        if scope_key == "child":
+            scope_key = f"child:{extract_child_event_identity(item)}"
         grouped.setdefault((series_key, event_year, season_key, scope_key), []).append(item)
 
     representatives: list[RawItem] = []
@@ -725,16 +988,36 @@ def attach_event_hierarchy(items: list[RawItem], query_text: str = "") -> list[R
     return visible_items
 
 
-def render_item_list(*, archive_month: str = "", page_title: str = "収集データ一覧", base_path: str = "/"):
+def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI情報収集クローラ", base_path: str = "/"):
     q = request.args.get("q", "").strip()
+    requested_collection_status = request.args.get("collection_status", "").strip()
+    is_collection_result_request = requested_collection_status == "ok" and bool(q)
     source_name = request.args.get("source_name", "").strip()
     source_type = request.args.get("source_type", "").strip()
     event_country = request.args.get("event_country", "").strip()
     news_region = request.args.get("news_region", "").strip()
     news_category = request.args.get("news_category", "").strip()
+    requested_paper_category = request.args.get("paper_category", "").strip()
+    paper_category = requested_paper_category if re.fullmatch(r"[a-z][a-z0-9-]*\.[A-Za-z0-9-]+", requested_paper_category) else ""
+    requested_paper_source = request.args.get("paper_source", "").strip().lower()
+    paper_source = requested_paper_source if requested_paper_source in {"arxiv", "ieee", "journals"} else ""
     sort = request.args.get("sort", "published_at").strip()
     order = request.args.get("order", "desc").strip()
+    crawl_date = normalize_crawl_date(request.args.get("crawl_date", ""))
+    page = max(request.args.get("page", 1, type=int) or 1, 1)
+    requested_per_page = request.args.get("per_page", 50, type=int) or 50
+    per_page = requested_per_page if requested_per_page in {25, 50, 100} else 50
+    requested_calendar_month = normalize_archive_month(request.args.get("calendar_month", ""))
+    calendar_month = requested_calendar_month or datetime.now().strftime("%Y-%m")
     query = RawItem.query
+
+    if crawl_date:
+        # fetched_at is stored as naive UTC. Treat the selected crawler execution
+        # date as JST and convert its boundaries back to UTC for an indexed range query.
+        jst_start = datetime.strptime(crawl_date, "%Y-%m-%d")
+        utc_start = jst_start - timedelta(hours=9)
+        utc_end = utc_start + timedelta(days=1)
+        query = query.filter(RawItem.fetched_at >= utc_start, RawItem.fetched_at < utc_end)
 
     if q:
         query = query.filter(
@@ -745,12 +1028,19 @@ def render_item_list(*, archive_month: str = "", page_title: str = "収集デー
                 RawItem.source_name.ilike(f"%{q}%"),
             )
         )
-
-    if source_name:
-        query = query.filter(RawItem.source_name == source_name)
+        if is_collection_result_request:
+            query = query.filter(
+                RawItem.source_name.like("Keyword /%"),
+                RawItem.raw_text.contains(f"Keyword: {q}", autoescape=True),
+            )
 
     if archive_month:
         query = query.filter(RawItem.published_at.like(f"{archive_month}-%"))
+
+    thinktank_menu_query = query
+
+    if source_name:
+        query = query.filter(RawItem.source_name == source_name)
 
     event_preview_query = query.filter(RawItem.source_type == "event")
     event_preview_items = event_preview_query.all()
@@ -758,14 +1048,26 @@ def render_item_list(*, archive_month: str = "", page_title: str = "収集デー
     event_preview_groups = build_event_groups(event_preview_items) if event_preview_items else []
     event_country_shortcuts = build_event_country_shortcuts(event_country, event_preview_groups, request.args, base_path)
 
-    news_preview_query = query.filter(RawItem.source_type == "news")
-    news_preview_items = news_preview_query.all()
-    news_category_groups = build_news_category_groups(news_preview_items) if news_preview_items else []
-    news_category_shortcuts = build_news_category_shortcuts(news_region, news_category, news_category_groups, request.args, base_path)
+    news_category_groups: list[dict] = []
+    news_category_shortcuts = build_news_category_menu(news_category, request.args, base_path)
     summary_query = query
+    paper_category_shortcuts, paper_source_groups = build_paper_category_menu(
+        paper_source, paper_category, request.args, base_path, summary_query
+    )
+    thinktank_shortcuts = build_thinktank_menu(
+        source_name, request.args, base_path, thinktank_menu_query
+    )
 
     if source_type:
         query = query.filter(RawItem.source_type == source_type)
+    if source_type == "paper" and paper_category:
+        query = query.filter(RawItem.raw_text.like(f"%{paper_category}%"))
+    if source_type == "paper" and paper_source == "arxiv":
+        query = query.filter(RawItem.source_name.ilike("arXiv%"))
+    elif source_type == "paper" and paper_source == "ieee":
+        query = query.filter(RawItem.source_name.ilike("IEEE%"))
+    elif source_type == "paper" and paper_source == "journals":
+        query = query.filter(RawItem.source_name.ilike("Journal /%"))
 
     sortable_columns = {
         "fetched_at": RawItem.fetched_at,
@@ -799,21 +1101,73 @@ def render_item_list(*, archive_month: str = "", page_title: str = "収集デー
     else:
         query = query.order_by(sort_column.desc(), display_category_priority.asc(), RawItem.fetched_at.desc())
 
-    items = query.all()
-    if items and all(item.source_type == "event" for item in items):
-        items = dedupe_event_items(items)
-        items = attach_event_hierarchy(items, q)
-    elif items and all(item.source_type == "news" for item in items):
-        news_groups = build_news_category_groups(items)
-        if news_region:
-            news_groups = [group for group in news_groups if group["region"] == news_region]
-        if news_category:
-            news_groups = [group for group in news_groups if group["category"] == news_category]
-        if news_region or news_category:
-            items = [item for group in news_groups for item in group["items"]]
+    trend_result_groups: list[dict] = []
+    if source_type == "event":
+        candidate_items = query.all()
+        candidate_items = dedupe_event_items(candidate_items)
+        candidate_items = attach_event_hierarchy(candidate_items, q)
+        if event_country:
+            candidate_items = [item for item in candidate_items if extract_event_country(item) == event_country]
+        candidate_items = [item for item in candidate_items if event_occurs_in_month(item, calendar_month)]
+        pagination_total = len(candidate_items)
+        page = 1
+        items = candidate_items
+    elif source_type == "trend":
+        candidate_items = query.all()
+        latest_trends: dict[tuple[str, str], dict] = {}
+        for candidate in candidate_items:
+            series = build_google_trend_series(candidate)
+            if series["time_range"] != "now 7-d":
+                continue
+            key = (series["keyword"], series["region"])
+            if key not in latest_trends:
+                series["available"] = bool(series["points"])
+                series["detail_url"] = f"/raw/{candidate.id}"
+                latest_trends[key] = {"item": candidate, "series": series}
 
-    if sort == "published_at":
-        items = sort_display_items(items, order)
+        grouped_trends: dict[str, dict] = {
+            keyword: {"keyword": keyword, "by_region": {}, "item": None}
+            for keyword in DEFAULT_TREND_KEYWORDS
+        }
+        for (keyword, region), entry in latest_trends.items():
+            if keyword not in grouped_trends:
+                continue
+            group = grouped_trends[keyword]
+            if group["item"] is None:
+                group["item"] = entry["item"]
+            group["by_region"][region] = entry["series"]
+
+        all_trend_groups = []
+        for keyword in DEFAULT_TREND_KEYWORDS:
+            group = grouped_trends[keyword]
+            region_series = []
+            for region in ("日本", "世界"):
+                region_series.append(group["by_region"].get(region, {
+                    "keyword": keyword,
+                    "region": region,
+                    "available": False,
+                    "rankings": [],
+                }))
+            all_trend_groups.append({"keyword": keyword, "series": region_series, "item": group["item"]})
+
+        pagination_total = len(all_trend_groups)
+        offset = (page - 1) * per_page
+        trend_result_groups = all_trend_groups[offset:offset + per_page]
+        items = [group["item"] for group in trend_result_groups if group["item"] is not None]
+    elif source_type == "news" and (news_region or news_category):
+        candidate_items = query.all()
+        candidate_items = [
+            item for item in candidate_items
+            if (not news_region or extract_news_region(item) == news_region)
+            and (not news_category or extract_news_category(item) == news_category)
+        ]
+        pagination_total = len(candidate_items)
+        offset = (page - 1) * per_page
+        items = candidate_items[offset:offset + per_page]
+    else:
+        pagination_total = query.order_by(None).with_entities(db.func.count(RawItem.id)).scalar() or 0
+        offset = (page - 1) * per_page
+        items = query.offset(offset).limit(per_page).all()
 
     for item in items:
         if item.source_type == "news":
@@ -823,18 +1177,21 @@ def render_item_list(*, archive_month: str = "", page_title: str = "収集デー
         item.display_title = item.translated_title or item.title
         item.display_summary = clean_summary(item.translated_summary or item.raw_summary)
         item.original_summary = clean_summary(item.raw_summary)
+        if item.source_type == "trend" and not hasattr(item, "trend_series"):
+            trend_series = build_google_trend_series(item)
+            item.trend_series = trend_series if trend_series["time_range"] == "now 7-d" else None
         enrich_event_fields(item)
 
     event_groups: list[dict] = []
+    event_calendar: dict = {}
     event_country_tabs: list[dict] = []
     available_event_countries: list[str] = []
     if items and all(item.source_type == "event" for item in items):
         event_groups = build_event_groups(items)
-        available_event_countries = [group["country"] for group in event_groups]
-        event_country_tabs = build_country_tabs(source_type, event_country, event_groups, request.args, base_path)
-        if event_country:
-            event_groups = [group for group in event_groups if group["country"] == event_country]
-            items = [item for group in event_groups for item in group["items"]]
+        available_event_countries = [group["country"] for group in event_preview_groups]
+        event_country_tabs = build_country_tabs(source_type, event_country, event_preview_groups, request.args, base_path)
+    if source_type == "event":
+        event_calendar = build_event_calendar(items, calendar_month, base_path)
 
     source_names = [
         row[0]
@@ -858,25 +1215,82 @@ def render_item_list(*, archive_month: str = "", page_title: str = "収集デー
         .all()
     )
     type_counts = {source_type: count for source_type, count in type_counts_raw}
+    if "event" in type_counts:
+        # The event tile represents unique exhibitions, not raw records such
+        # as Japanese/English variants of the same official event page.
+        type_counts["event"] = len(event_preview_items)
+    tile_params = {}
+    for key in ["q", "source_name", "sort", "order", "crawl_date"]:
+        value = (request.args.get(key) or "").strip()
+        if value:
+            tile_params[key] = value
+    source_type_tiles = []
+    for available_type in source_types:
+        params = dict(tile_params)
+        params["source_type"] = available_type
+        source_type_tiles.append({
+            "type": available_type,
+            "count": type_counts.get(available_type, 0),
+            "href": f"{base_path}?{urlencode(params)}",
+            "active": source_type == available_type,
+        })
     total_count = summary_query.with_entities(db.func.count(RawItem.id)).scalar()
     current_list_url = request.full_path if request.query_string else request.path
     if current_list_url.endswith("?"):
         current_list_url = current_list_url[:-1]
     archive_links = build_archive_links()
-    news_region_order = {
-        "日本国内の記事": 0,
-        "海外の記事": 1,
+    recent_crawl_dates = build_recent_crawl_dates()
+    today_jst_datetime = datetime.utcnow() + timedelta(hours=9)
+    today_jst = today_jst_datetime.strftime("%Y-%m-%d")
+    yesterday_jst = (today_jst_datetime - timedelta(days=1)).strftime("%Y-%m-%d")
+    pagination_pages = max(1, ceil(pagination_total / per_page))
+
+    def pagination_url(target_page: int) -> str:
+        params = request.args.to_dict(flat=True)
+        params["page"] = str(target_page)
+        params["per_page"] = str(per_page)
+        return f"{base_path}?{urlencode(params)}"
+
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total": pagination_total,
+        "pages": pagination_pages,
+        "start": ((page - 1) * per_page + 1) if (items or trend_result_groups) else 0,
+        "end": min(page * per_page, pagination_total),
+        "has_prev": page > 1,
+        "has_next": page < pagination_pages,
+        "prev_url": pagination_url(page - 1) if page > 1 else "",
+        "next_url": pagination_url(page + 1) if page < pagination_pages else "",
     }
-    filtered_news_categories = [
-        group["category"]
-        for group in news_category_groups
-        if (not news_region or group["region"] == news_region)
-    ]
     collection_keyword = request.args.get("collection_keyword", "").strip()
     collection_inserted = request.args.get("collection_inserted", "").strip()
     collection_skipped = request.args.get("collection_skipped", "").strip()
-    collection_status = request.args.get("collection_status", "").strip()
+    collection_status = requested_collection_status
     collection_sources = request.args.get("collection_sources", "").strip()
+    is_collection_result_view = collection_status == "ok" and bool(q)
+    is_tile_result_view = source_type in EXPORTABLE_SOURCE_TYPES
+    is_export_result_view = is_collection_result_view or is_tile_result_view
+    if is_collection_result_view:
+        export_pdf_params = {"q": q}
+        export_pdf_endpoint = "search_results_pdf"
+    else:
+        if source_type == "event":
+            # Event exports intentionally cover the complete domestic and
+            # international event catalog, independent of the calendar view.
+            export_pdf_params = {"source_type": "event"}
+        else:
+            export_pdf_params = {
+                key: value
+                for key, value in request.args.to_dict(flat=True).items()
+                if key in {
+                    "q", "source_name", "source_type", "crawl_date",
+                    "news_region", "news_category", "paper_source", "paper_category",
+                } and value
+            }
+            if archive_month:
+                export_pdf_params["archive_month"] = archive_month
+        export_pdf_endpoint = "filtered_search_results_pdf"
 
     return render_template(
         "list.html",
@@ -896,20 +1310,43 @@ def render_item_list(*, archive_month: str = "", page_title: str = "収集デー
         current_event_country=event_country,
         current_news_region=news_region,
         current_news_category=news_category,
+        current_paper_category=paper_category,
+        current_paper_source=paper_source,
         current_sort=sort,
         current_order=order,
+        current_crawl_date=crawl_date,
+        recent_crawl_dates=recent_crawl_dates,
+        all_news_href=url_for("list_raw_items"),
+        today_news_href=url_for("list_raw_items", crawl_date=today_jst),
+        yesterday_news_href=url_for("list_raw_items", crawl_date=yesterday_jst),
+        daily_news_pdf_open_href=url_for("today_news_pdf", date=crawl_date, disposition="inline") if crawl_date else "",
+        daily_news_pdf_download_href=url_for("today_news_pdf", date=crawl_date, disposition="attachment") if crawl_date else "",
+        search_results_pdf_open_href=url_for(export_pdf_endpoint, **export_pdf_params, disposition="inline") if is_export_result_view else "",
+        search_results_pdf_download_href=url_for(export_pdf_endpoint, **export_pdf_params, disposition="attachment") if is_export_result_view else "",
+        is_collection_result_view=is_collection_result_view,
+        is_export_result_view=is_export_result_view,
+        is_all_news_view=request.path == "/" and not request.query_string,
+        is_today_news_view=request.path == "/" and crawl_date == today_jst,
+        is_yesterday_news_view=request.path == "/" and crawl_date == yesterday_jst,
+        is_daily_news_view=request.path == "/" and bool(crawl_date),
+        pagination=pagination,
+        per_page_options=[25, 50, 100],
         total_count=total_count,
         type_counts=type_counts,
+        source_type_tiles=source_type_tiles,
+        trend_result_groups=trend_result_groups,
         event_groups=event_groups,
+        event_calendar=event_calendar,
+        event_calendar_href=url_for("list_raw_items", source_type="event"),
         event_country_tabs=event_country_tabs,
         available_event_countries=available_event_countries,
         event_country_shortcuts=event_country_shortcuts,
         news_category_shortcuts=news_category_shortcuts,
-        available_news_regions=sorted(
-            {group["region"] for group in news_category_groups if group["region"]},
-            key=lambda value: (news_region_order.get(value, 9), value),
-        ),
-        available_news_categories=sorted(set(filtered_news_categories)),
+        paper_category_shortcuts=paper_category_shortcuts,
+        paper_source_groups=paper_source_groups,
+        thinktank_shortcuts=thinktank_shortcuts,
+        available_news_regions=["日本国内の記事", "海外の記事"],
+        available_news_categories=["Physical-AI", "Robot Makers", "Real-Haptics", "Startup", "その他"],
         collection_keyword=collection_keyword,
         collection_inserted=collection_inserted,
         collection_skipped=collection_skipped,
@@ -922,6 +1359,235 @@ def render_item_list(*, archive_month: str = "", page_title: str = "収集デー
 @app.route("/")
 def list_raw_items():
     return render_item_list()
+
+
+def build_pdf_category_groups(items: list[RawItem]) -> list[dict]:
+    source_type_definitions = [
+        ("news", "ニュース"),
+        ("paper", "論文"),
+        ("event", "イベント・展示会"),
+        ("company", "企業情報"),
+        ("policy", "政策・行政情報"),
+        ("thinktank", "シンクタンク情報"),
+        ("trend", "Google Trends"),
+    ]
+    source_type_labels = dict(source_type_definitions)
+    grouped_items = {source_type: [] for source_type, _label in source_type_definitions}
+
+    def pdf_subcategory(item: RawItem) -> str:
+        if item.source_type == "news":
+            region = "国内" if extract_news_region(item) == "日本国内の記事" else "海外"
+            return f"{region} / {extract_news_category(item) or 'その他'}"
+        if item.source_type == "paper":
+            source_name = item.source_name or ""
+            if source_name.lower().startswith("arxiv"):
+                categories = extract_paper_categories(item.raw_text or "")
+                category = next((value for value in categories if value != "cs.RO"), "cs.RO")
+                category_label = PAPER_CATEGORY_LABELS.get(category, category)
+                return f"arXiv / {category_label}（#{category}）"
+            if source_name.lower().startswith("ieee"):
+                publication = re.search(r"(?:^|\n)Publication:\s*([^\n]+)", item.raw_text or "")
+                publication_name = publication.group(1).strip() if publication else source_name.removeprefix("IEEE /").strip()
+                if publication_name.startswith("IEEE /"):
+                    publication_name = publication_name.removeprefix("IEEE /").strip()
+                return f"IEEE / {publication_name or 'その他'}"
+            if source_name.startswith("Journal /"):
+                return f"主要誌 / {source_name.removeprefix('Journal /').strip()}"
+            return source_name or "その他の論文"
+        if item.source_type == "event":
+            return extract_event_country(item) or "その他"
+        return item.source_name or "その他"
+
+    for item in items:
+        subcategory = pdf_subcategory(item)
+        pdf_item = {
+            "title": item.translated_title or item.title,
+            "summary": clean_summary(item.translated_summary or item.raw_summary, max_length=150),
+            "source_name": item.source_name or "",
+            "published_at": item.published_at or "",
+            "url": item.url or "",
+            "subcategory": subcategory,
+        }
+        if item.source_type == "event":
+            enrich_event_fields(item)
+            pdf_item.update({
+                "event_start_date": item.event_start_date or "",
+                "event_end_date": item.event_end_date or item.event_start_date or "",
+                "event_country": item.event_country or extract_event_country(item),
+            })
+        if item.source_type == "trend":
+            series = build_google_trend_series(item)
+            pdf_item["trend"] = {
+                key: series[key]
+                for key in (
+                    "keyword", "region", "latest_value", "average_value", "peak_value",
+                    "values", "start_date", "end_date", "interval_label", "point_count", "rankings",
+                )
+            }
+        grouped_items.setdefault(item.source_type or "other", []).append(pdf_item)
+    category_groups = [
+        {
+            "category": source_type_labels.get(source_type, source_type or "その他"),
+            "count": len(group_items),
+            "items": group_items,
+            "subcategories": [
+                {"label": label, "count": count}
+                for label, count in sorted(
+                    Counter(item["subcategory"] for item in group_items).items(),
+                    key=lambda entry: (-entry[1], entry[0]),
+                )
+            ],
+        }
+        for source_type, group_items in grouped_items.items()
+        if group_items
+    ]
+    return category_groups
+
+
+def build_daily_information_pdf(report_date: str) -> tuple[bytes, int]:
+    jst_start = datetime.strptime(report_date, "%Y-%m-%d")
+    utc_start = jst_start - timedelta(hours=9)
+    utc_end = utc_start + timedelta(days=1)
+    items = (
+        RawItem.query
+        .filter(RawItem.fetched_at >= utc_start, RawItem.fetched_at < utc_end)
+        .order_by(RawItem.source_type.asc(), RawItem.published_at.desc(), RawItem.fetched_at.desc())
+        .all()
+    )
+    pdf_data = render_daily_news_pdf(report_date, build_pdf_category_groups(items))
+    return pdf_data, len(items)
+
+
+@app.route("/today-news.pdf")
+def today_news_pdf():
+    report_date = normalize_crawl_date(request.args.get("date", ""))
+    disposition = request.args.get("disposition", "attachment").strip().lower()
+    if disposition not in {"inline", "attachment"}:
+        disposition = "attachment"
+    if not report_date:
+        report_date = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d")
+    pdf_data, _item_count = build_daily_information_pdf(report_date)
+    return Response(
+        pdf_data,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'{disposition}; filename="daily-information-{report_date}.pdf"'},
+    )
+
+
+@app.route("/search-results.pdf")
+def search_results_pdf():
+    keyword = request.args.get("q", "").strip()[:200]
+    if not keyword:
+        return Response("検索キーワードを指定してください。", status=400, content_type="text/plain; charset=utf-8")
+    disposition = request.args.get("disposition", "attachment").strip().lower()
+    if disposition not in {"inline", "attachment"}:
+        disposition = "attachment"
+    items = (
+        RawItem.query
+        .filter(
+            RawItem.source_name.like("Keyword /%"),
+            RawItem.raw_text.contains(f"Keyword: {keyword}", autoescape=True),
+        )
+        .order_by(RawItem.source_type.asc(), RawItem.published_at.desc(), RawItem.fetched_at.desc())
+        .all()
+    )
+    created_date = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d")
+    pdf_data = render_daily_news_pdf(
+        created_date,
+        build_pdf_category_groups(items),
+        report_title="Physical-AIキーワード検索結果レポート",
+        scope_description=f'検索キーワード「{keyword}」に一致する収集情報を種別ごとに整理しています。',
+        footer_label=f"検索結果: {keyword}",
+        group_items_by_year=True,
+    )
+    return Response(
+        pdf_data,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'{disposition}; filename="keyword-search-results-{created_date}.pdf"'},
+    )
+
+
+@app.route("/filtered-results.pdf")
+def filtered_search_results_pdf():
+    source_type = request.args.get("source_type", "").strip()
+    if source_type not in EXPORTABLE_SOURCE_TYPES:
+        return Response("PDF出力対象の種別を指定してください。", status=400, content_type="text/plain; charset=utf-8")
+
+    query = RawItem.query.filter(RawItem.source_type == source_type)
+    keyword = request.args.get("q", "").strip()[:200]
+    if keyword and source_type != "event":
+        query = query.filter(or_(
+            RawItem.title.ilike(f"%{keyword}%"),
+            RawItem.raw_summary.ilike(f"%{keyword}%"),
+            RawItem.raw_text.ilike(f"%{keyword}%"),
+            RawItem.source_name.ilike(f"%{keyword}%"),
+        ))
+    source_name = request.args.get("source_name", "").strip()[:200]
+    if source_name and source_type != "event":
+        query = query.filter(RawItem.source_name == source_name)
+    crawl_date = normalize_crawl_date(request.args.get("crawl_date", ""))
+    if crawl_date and source_type != "event":
+        jst_start = datetime.strptime(crawl_date, "%Y-%m-%d")
+        utc_start = jst_start - timedelta(hours=9)
+        query = query.filter(RawItem.fetched_at >= utc_start, RawItem.fetched_at < utc_start + timedelta(days=1))
+    archive_month = normalize_archive_month(request.args.get("archive_month", ""))
+    if archive_month and source_type != "event":
+        query = query.filter(RawItem.published_at.like(f"{archive_month}-%"))
+
+    items = query.order_by(RawItem.published_at.desc(), RawItem.fetched_at.desc()).all()
+    if source_type == "news":
+        news_region = request.args.get("news_region", "").strip()
+        news_category = request.args.get("news_category", "").strip()
+        items = [
+            item for item in items
+            if (not news_region or extract_news_region(item) == news_region)
+            and (not news_category or extract_news_category(item) == news_category)
+        ]
+    elif source_type == "paper":
+        paper_source = request.args.get("paper_source", "").strip().lower()
+        paper_category = request.args.get("paper_category", "").strip()
+        if paper_source == "arxiv":
+            items = [item for item in items if (item.source_name or "").lower().startswith("arxiv")]
+        elif paper_source == "ieee":
+            items = [item for item in items if (item.source_name or "").lower().startswith("ieee")]
+        elif paper_source == "journals":
+            items = [item for item in items if (item.source_name or "").startswith("Journal /")]
+        if paper_category:
+            items = [item for item in items if paper_category in (item.raw_text or "")]
+    elif source_type == "event":
+        # Export every unique event record. Do not collapse child exhibitions
+        # into their parent or apply the month/country filters used by the
+        # interactive calendar.
+        items = dedupe_event_items(items)
+
+    disposition = request.args.get("disposition", "attachment").strip().lower()
+    if disposition not in {"inline", "attachment"}:
+        disposition = "attachment"
+    labels = {
+        "company": "企業情報", "event": "イベント・展示会", "news": "ニュース",
+        "paper": "論文", "policy": "政策・行政情報", "thinktank": "シンクタンク情報",
+    }
+    label = labels[source_type]
+    created_date = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d")
+    scope_description = (
+        "DBに保存されている国内外すべてのイベント・展示会を、重複整理してまとめています。"
+        if source_type == "event"
+        else f'Webアプリで選択した「{label}」の検索・絞り込み結果をまとめています。'
+    )
+    pdf_data = render_daily_news_pdf(
+        created_date,
+        build_pdf_category_groups(items),
+        report_title=f"Physical-AI {label}検索結果レポート",
+        scope_description=scope_description,
+        footer_label=f"検索結果: {label}",
+        group_items_by_year=True,
+        include_yearly_event_calendar=source_type == "event",
+    )
+    return Response(
+        pdf_data,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'{disposition}; filename="{source_type}-search-results-{created_date}.pdf"'},
+    )
 
 
 @app.route("/archive")
@@ -1010,7 +1676,8 @@ def build_google_trend_series(item: RawItem) -> dict:
     if not isinstance(points, list):
         points = []
     chart_points = []
-    point_dates = []
+    chart_values = []
+    point_datetimes = []
     if points:
         denominator = max(len(points) - 1, 1)
         for index, point in enumerate(points):
@@ -1018,23 +1685,38 @@ def build_google_trend_series(item: RawItem) -> dict:
                 value = max(0, min(100, int(point.get("value", 0))))
             except (TypeError, ValueError):
                 value = 0
+            chart_values.append(value)
             chart_points.append(f"{index / denominator * 100:.2f},{100 - value:.2f}")
-            parsed_date = parse_date_safe(point.get("date"))
-            if parsed_date:
-                point_dates.append(parsed_date)
+            point_datetime = point.get("datetime", "")
+            try:
+                parsed_datetime = datetime.strptime(point_datetime, "%Y-%m-%d %H:%M")
+            except (TypeError, ValueError):
+                parsed_datetime = parse_date_safe(point.get("date"))
+            if parsed_datetime:
+                point_datetimes.append(parsed_datetime)
     interval_label = "取得間隔"
-    if len(point_dates) >= 2:
-        interval_days = (point_dates[1] - point_dates[0]).days
-        if interval_days <= 1:
-            interval_label = "日次"
-        elif interval_days <= 8:
-            interval_label = "週次"
-        elif interval_days <= 32:
-            interval_label = "月次"
+    if len(point_datetimes) >= 2:
+        interval_seconds = (point_datetimes[1] - point_datetimes[0]).total_seconds()
+        if interval_seconds < 86400:
+            interval_label = f"{max(round(interval_seconds / 3600), 1)}時間間隔"
+        elif interval_seconds < 86400 * 8:
+            interval_label = f"{max(round(interval_seconds / 86400), 1)}日間隔"
         else:
-            interval_label = f"{interval_days}日間隔"
-    start_date = point_dates[0].strftime("%Y-%m-%d") if point_dates else ""
-    end_date = point_dates[-1].strftime("%Y-%m-%d") if point_dates else ""
+            interval_label = f"{round(interval_seconds / 86400)}日間隔"
+    start_date = point_datetimes[0].strftime("%m/%d %H:%M") if point_datetimes else ""
+    end_date = point_datetimes[-1].strftime("%m/%d %H:%M") if point_datetimes else ""
+    regional_interest = payload.get("regional_interest", []) if isinstance(payload, dict) else []
+    if not isinstance(regional_interest, list):
+        regional_interest = []
+    rankings = []
+    for rank, region_value in enumerate(regional_interest[:5], start=1):
+        if not isinstance(region_value, dict):
+            continue
+        rankings.append({
+            "rank": rank,
+            "name": region_value.get("name", "地域名不明"),
+            "value": region_value.get("value", 0),
+        })
     return {
         "item": item,
         "keyword": payload.get("keyword", item.title),
@@ -1043,7 +1725,10 @@ def build_google_trend_series(item: RawItem) -> dict:
         "latest_value": payload.get("latest_value"),
         "average_value": payload.get("average_value"),
         "peak_value": payload.get("peak_value"),
+        "time_range": payload.get("time_range", ""),
+        "rankings": rankings,
         "points": " ".join(chart_points),
+        "values": chart_values,
         "point_count": len(points),
         "start_date": start_date,
         "end_date": end_date,
@@ -1063,18 +1748,30 @@ def google_trends_page():
     latest: dict[tuple[str, str], dict] = {}
     for item in items:
         series = build_google_trend_series(item)
+        if series["time_range"] != "now 7-d":
+            continue
         key = (series["keyword"], series["region"])
         latest.setdefault(key, series)
-    grouped: dict[str, list[dict]] = {}
+    grouped: dict[str, dict[str, dict]] = {keyword: {} for keyword in DEFAULT_TREND_KEYWORDS}
     for series in latest.values():
-        grouped.setdefault(series["keyword"], []).append(series)
-    keyword_groups = [
-        {
-            "keyword": keyword,
-            "series": sorted(series, key=lambda value: 0 if value["region"] == "日本" else 1),
-        }
-        for keyword, series in sorted(grouped.items())
-    ]
+        if series["keyword"] in grouped:
+            grouped[series["keyword"]][series["region"]] = series
+    keyword_groups = []
+    for keyword in DEFAULT_TREND_KEYWORDS:
+        series_list = []
+        for geo, region in (("JP", "日本"), ("", "世界")):
+            series_list.append(grouped[keyword].get(region, {
+                "keyword": keyword,
+                "region": region,
+                "points": "",
+                "error": "まだ正常な取得データがありません。",
+                "explore_url": "https://trends.google.com/trends/explore?" + urlencode({
+                    "q": keyword,
+                    "date": "now 7-d",
+                    **({"geo": geo} if geo else {}),
+                }),
+            }))
+        keyword_groups.append({"keyword": keyword, "series": series_list})
     return render_template("trends.html", keyword_groups=keyword_groups)
 
 

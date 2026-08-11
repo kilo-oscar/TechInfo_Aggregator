@@ -49,6 +49,8 @@ echo "[INFO] keep existing raw_items and append only non-duplicate items" >> "$L
 
 # 各クローラを順番に実行
 run_step "arxiv_crawler" python3 -m crawlers.arxiv_crawler
+run_step "ieee_xplore_crawler" python3 -m crawlers.ieee_xplore_crawler
+run_step "robotics_journals_crawler" python3 -m crawlers.robotics_journals_crawler
 run_step "google_news_crawler" python3 -m crawlers.google_news_crawler
 run_step "google_trends_crawler" python3 -m crawlers.google_trends_crawler
 run_step "exhibition_crawler" python3 -m crawlers.exhibition_crawler

@@ -25,11 +25,7 @@ def needs_japanese_translation(source_type: str | None, title: str | None, summa
     if source_type not in {"news", "paper"}:
         return False
     title = (title or "").strip()
-    summary = (summary or "").strip()
-    return bool(title or summary) and (
-        (bool(title) and not contains_japanese(title))
-        or (bool(summary) and not contains_japanese(summary))
-    )
+    return bool(title) and not contains_japanese(title)
 
 
 class TranslationUnavailable(RuntimeError):
@@ -150,16 +146,14 @@ class GoogleCloudTranslator:
 
 def build_translation_fields(data: dict, translator: GoogleCloudTranslator | None = None) -> dict:
     title = data.get("title") or ""
-    summary = data.get("raw_summary") or ""
-    if not needs_japanese_translation(data.get("source_type"), title, summary):
+    if not needs_japanese_translation(data.get("source_type"), title, None):
         return {}
     translator = translator or GoogleCloudTranslator()
     if not translator.available:
         return {}
-    translated, detected_language = translator.translate([title, summary])
+    translated, detected_language = translator.translate([title])
     return {
         "translated_title": translated[0] or None,
-        "translated_summary": translated[1] or None,
         "source_language": detected_language or None,
         "translation_provider": translator.provider_name,
         "translated_at": datetime.utcnow(),

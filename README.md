@@ -145,6 +145,51 @@ arXiv クローラ:
 python3 -m crawlers.arxiv_crawler
 ```
 
+IEEE系論文メタデータクローラ（申請不要のCrossref公開REST APIを利用し、本文は取得せず、見出し・登録されている概要・著者・DOIなどを保存）:
+
+```bash
+python3 -m crawlers.ieee_xplore_crawler
+```
+
+APIキーやユーザー登録は不要です。IEEEのCrossref会員ID `263` に限定して検索するため、IEEEがCrossrefへ登録した論文メタデータが対象になります。Crossrefは任意の連絡先メールアドレスを付けたPolite poolの利用を推奨しています。設定しなくてもPublic poolで実行できます。
+
+```dotenv
+CROSSREF_MAILTO="連絡可能なメールアドレス（任意）"
+```
+
+検索語や1検索あたりの取得件数を変更する場合:
+
+```bash
+python3 -m crawlers.ieee_xplore_crawler \
+  --queries '"physical AI"' '"vision language action" AND robot' \
+  --max-records 50
+```
+
+Crossrefに概要が登録されていない論文は、タイトル・著者・DOIなどの書誌情報だけを保存します。短時間の大量アクセスを避け、CrossrefのPublic/Polite poolのレート制限に従って利用してください。
+
+インパクトファクター2.0超の主要ロボティクス誌をまとめて収集するクローラ:
+
+```bash
+python3 -m crawlers.robotics_journals_crawler
+```
+
+対象誌は次の8誌です。いずれも申請・APIキー不要のCrossref公開REST APIから書誌メタデータを取得します。
+
+- Annual Review of Control, Robotics, and Autonomous Systems
+- The International Journal of Robotics Research
+- Science Robotics
+- Journal of Field Robotics
+- Robotics and Autonomous Systems
+- Frontiers in Robotics and AI
+- Cyborg and Bionic Systems
+- Annual Reviews in Control（Physical AI・Robotics関連のみ）
+
+個別の雑誌だけを試す場合:
+
+```bash
+python3 -m crawlers.robotics_journals_crawler --journals science-robotics ijrr --max-records 10
+```
+
 シンクタンク横断クローラ:
 
 ```bash
@@ -306,19 +351,42 @@ http://127.0.0.1:5000
 
 ### 一覧画面でできること
 
+- 見出し横の「すべてのニュース」で全取得情報、「デイリーニュース」のメニューで今日・昨日・任意の日付に取得した情報を表示
+- デイリーニュースで日付を指定した画面の「デイリーニュースPDF作成」メニューから、指定日に取得したすべての情報をまとめたPDFをブラウザで開くか、ローカルPCへダウンロード
+- キーワード収集の実行結果を表示している間は、画面上部の「デイリーニュース」が「検索結果のエクスポート」に切り替わり、キーワード収集機能がその検索語で保存した結果をカテゴリ別PDFとして開くかダウンロード（通常の全文キーワード検索で一致した別データは含めません）
+- `company`、`event`、`news`、`paper`、`policy`、`thinktank` の各タイルを選択した画面でも「デイリーニュース」が「検索結果のエクスポート」に切り替わり、PDFを作成。company、news、paper、policy、thinktankは表示中の絞り込み条件を引き継ぎ、eventは画面の開催月・国・取得日などにかかわらず、重複整理後の国内外すべてのイベント・展示会を出力
+- 検索結果のエクスポートPDFでは、各小カテゴリ内の情報を公開年月日の新しい順に並べ、年ごとの小見出しを表示。公開日を特定できない情報は「日付不明」として末尾に集約
+- イベント・展示会PDFは先頭ページの国・地域別集計テーブルに加え、横軸へ1月から12月を並べた開催年ごとの年間タイムラインを掲載。各展示会を開催期間に対応する矢羽根と名称・日付で表示し、重ならないよう1件ずつ縦位置をずらして配置。矢羽根は日本・米国・中国・韓国・その他で色分けし、タイムライン上部に凡例を表示。イベント名は矢羽根の中央位置に揃えた薄い青色背景・青文字・下線付きリンクで、矢羽根またはイベント名をクリックすると該当イベントサイトを開く
+
+PDFにはニュース、論文、イベント・展示会、企業情報、政策・行政情報、シンクタンク情報、Google Trendsの大カテゴリと小カテゴリごとの件数、各項目のタイトル、概要、情報元、公開日、リンクが含まれます。Google Trendsについては、過去7日間の時系列グラフ、最新・平均・最高の検索関心度、地域別インタレスト上位5件も掲載します。集計表のカテゴリ名と件数は、本文の該当箇所へ移動できるリンクになっています。論文はarXivの分野コード、IEEEの掲載誌、主要誌の雑誌名ごとに集計します。本文も小カテゴリごとに分け、全件を網羅しつつ2段組みのコンパクトなレイアウトで出力します。過去の取得日を指定して生成する場合は、次のように `date` を日本時間の日付で指定できます。
+
+PDFの見出しは「Physical-AIデイリー情報収集レポート」で、先頭ページ右上に日本時間の作成日を表示します。各ページ左上の「先頭ページへ戻る」から集計表のある先頭ページへ移動できます。
+
+各ページのフッターには、クリック可能なリモートリポジトリURL `https://github.com/kilo-oscar/TechInfo_Aggregator` を表示します。
+
+```text
+http://127.0.0.1:5000/today-news.pdf?date=2026-08-06
+```
 - キーワード検索
 - `source_name` での絞り込み
 - `source_type` での絞り込み
+- `thinktank` タイルのハンバーガーメニューから、シンクタンク企業別の取得件数を確認して絞り込み
+- `trend` の検索結果カードに、過去7日間の時系列グラフ、最新・平均・最高の検索関心度、地域別インタレスト1位から5位を表示
+- クローラ実行日（日本時間）を指定し、その日に取得した情報だけを表示
 - 最新クローラ実行で取得した記事の `NEW` 表示
 - `published_at` / `fetched_at` などでの並び替え
 - 各レコードの詳細表示
+- 25件、50件、100件から選べるページ分割（既定は50件）
 
-上部の集計カードからもナビゲーションできます。
+一覧の並び替えとページ分割はSQLiteの `ORDER BY` / `LIMIT` / `OFFSET` で処理されます。公開日、種別+公開日、ソース名、取得日、クロールバッチIDには検索用インデックが自動作成されます。
 
-- `イベント` カード: 国別ナビゲーションをホバーまたはクリックで表示
-- `ニュース` カード: 小カテゴリナビゲーションをホバーまたはクリックで表示
+上部の集計タイルは、フィルタ欄の「種別」と同じ `source_type` をDBから動的に表示します。タイルをクリックすると、その種別の一覧へ移動します。
 
-`source_type=event` のときは、`ニュース` 一覧と別に開催国で絞り込めます。
+- `イベント` カード: クリックするとイベントカレンダーを表示
+- `ニュース` カード: クリックするとハンバーガー形式のカテゴリ選択メニューを表示
+- `paper` タイル: クリックすると、「arXiv系論文」「IEEE系論文」の中カテゴリを表示し、arXiv配下には上位タグを日本語の分野名付きで表示
+
+`source_type=event` のときは月間カレンダーでイベントを表示し、開催国で絞り込めます。カレンダーのイベントは国・地域ごとに色分けされ、上部に色の凡例が表示されます。複数日にわたるイベントは開催期間中の各日に表示されます。カレンダー内のイベント名をクリックすると概要、開催期間、会場などをモーダルで確認でき、そこから詳細画面へ移動できます。開催日を特定できないイベントはカレンダー下部の「開催日未定・日付不明」に表示されます。
 
 `source_type=news` のときは、次のような小分類で絞り込めます。
 
@@ -367,7 +435,7 @@ python3 generate_monthly_report.py 2026-08 --output /tmp/techinfo-2026-08.md
 
 ### 海外記事・論文の日本語翻訳
 
-海外ニュースと、日本語で記載されていない論文の見出し・概要は、Google Cloud Translationで日本語に翻訳してDBへ保存できます。原文は上書きされず、一覧画面の「原文を表示」から記事ごとに切り替えられます。
+海外ニュースと、日本語で記載されていない論文の見出しは、Google Cloud Translationで日本語に翻訳してDBへ保存できます。API使用文字数を抑えるため概要は翻訳対象にしません。原文は上書きされず、一覧画面の「原文を表示」から記事ごとに切り替えられます。
 
 #### Google Cloud Translation APIキーの取得方法
 
@@ -490,7 +558,7 @@ python3 backfill_japanese_translations.py --show-usage
 
 ### Physical AI Google Trends
 
-Physical AI関連キーワードの過去12か月のGoogle検索関心度を、日本と世界に分けて収集できます。
+Physical AI関連キーワードの過去7日間のGoogle検索関心度と、地域別インタレスト上位5件を日本と世界に分けて収集できます。日本はGoogle Trendsが返す国内地域、世界は国・地域をランキング対象とします。
 
 ```bash
 python3 -m crawlers.google_trends_crawler
@@ -508,11 +576,21 @@ python3 -m crawlers.google_trends_crawler --keywords "Physical AI" "フィジカ
 http://127.0.0.1:5000/trends
 ```
 
-日本と世界のトレンド推移、最新値、平均値、最高値、Google Trends公式Explore画面へのリンクをキーワードごとに確認できます。値は各期間・地域内の最高点を100とする相対値です。
+同じキーワードの日本と世界を1枚のカードにまとめて比較できます。カード内には、日本・世界それぞれの過去7日間のトレンド推移、最新値、平均値、最高値、地域別インタレスト1位から5位、Google Trends公式Explore画面へのリンクを表示します。PCでは横並び、画面幅が狭い端末では縦並びになります。値は各期間・地域内の最高点を100とする相対値です。
 
-グラフの横軸は日付（左が開始日、右が終了日）で、取得データから日次・週次・月次の間隔を自動判定して表示します。縦軸は検索関心度の相対値（0〜100）です。
+既定の8キーワードは履歴を毎回追加せず、キーワードと地域が同じ既存レコードを最新の取得結果で更新します。そのため、トレンド一覧は常にキーワード単位の8タイルで表示されます。一部地域の取得に失敗した場合は既存の正常なデータを保持し、次回成功時に更新します。旧仕様で作成された同一キーワード・地域の重複レコードは、その組み合わせの更新成功時に自動削除されます。
 
-Google Trendsの公式APIは現在申請制アルファのため、取得仕様の変更や一時的なレート制限によりデータ取得に失敗する可能性があります。失敗時でも日次処理は継続し、公式Exploreリンクは表示されます。
+グラフの横軸は過去7日間の日時（左が開始、右が終了）で、取得データから時間間隔を自動表示します。縦軸は検索関心度の相対値（0〜100）です。
+
+Google Trendsの公式APIは現在申請制アルファのため、取得仕様の変更や一時的なレート制限によりデータ取得に失敗する可能性があります。通常は各HTTPリクエスト間を8〜12秒程度空け、429時は `Retry-After` または30秒・60秒・120秒のバックオフで最大3回再試行します。時系列と地域別データの収集には通常約7〜10分かかります。
+
+再試行後も429が続く場合は、Googleへの連続アクセスを避けるため残りの収集を中断します。成功したトレンドだけを保存し、取得失敗行はWeb画面やPDFの件数に含めません。Google Trendsの処理が不完全な場合は非ゼロ終了しますが、`run_daily_crwalers.sh` は後続のクローラを継続します。
+
+待機と再試行を手動調整する例:
+
+```bash
+python3 -m crawlers.google_trends_crawler --delay 10 --max-retries 3 --retry-base-delay 30
+```
 
 ## 8. よく使う一連のコマンド
 
@@ -656,6 +734,46 @@ python3 send_new_items_gmail.py --limit 5
 ```bash
 python3 send_new_items_gmail.py
 ```
+
+### デイリー情報PDFをGmailで送信したい場合
+
+`send_daily_pdf_gmail.py` は、日本時間の前日に取得したすべての情報をPDF化し、既存の `GMAIL_SENDER`、`GMAIL_APP_PASSWORD`、`GMAIL_RECIPIENT` を使って添付送信します。例えば8月12日0:01に送信するPDFの対象取得日は8月11日です。日付ごとの送信済み状態を `instance/sent_daily_pdf_dates.json` に保存するため、タイマーの再実行で同じ日のPDFを二重送信しません。
+
+送信せずにPDF生成と件数を確認:
+
+```bash
+source .venv/bin/activate
+python3 send_daily_pdf_gmail.py --dry-run
+```
+
+指定日を手動送信:
+
+```bash
+python3 send_daily_pdf_gmail.py --date 2026-08-10
+```
+
+送信済みの日付を意図的に再送信する場合だけ `--force` を付けます。
+
+#### 毎日0:01（日本時間）に前日分を自動送信
+
+秒単位の実行に対応するsystemdユーザータイマーを `systemd/` に用意しています。
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp systemd/physical-ai-daily-pdf-mail.service ~/.config/systemd/user/
+cp systemd/physical-ai-daily-pdf-mail.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now physical-ai-daily-pdf-mail.timer
+```
+
+登録状態と次回実行時刻の確認:
+
+```bash
+systemctl --user status physical-ai-daily-pdf-mail.timer
+systemctl --user list-timers physical-ai-daily-pdf-mail.timer
+```
+
+タイマーは `Asia/Tokyo` を明示し、毎日 `00:01:00` に前日分の送信処理を開始します。PCが停止していた場合は `Persistent=true` により、次回起動後に未実行分を実行します。実行ログは `logs/daily_pdf_mail.log` に記録されます。
 
 ## 11. 仮想環境を抜ける
 

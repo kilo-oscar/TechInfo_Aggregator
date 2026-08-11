@@ -61,9 +61,10 @@ def fetch_html(url: str, timeout: int = 20) -> str:
     return response.text
 
 
-def text_contains_keywords(text: str) -> bool:
+def text_contains_keywords(text: str, ignored_keywords: list[str] | None = None) -> bool:
     lower = text.lower()
-    return any(keyword in lower for keyword in KEYWORDS)
+    ignored = {keyword.lower() for keyword in (ignored_keywords or [])}
+    return any(keyword not in ignored and keyword in lower for keyword in KEYWORDS)
 
 
 def extract_date(text: str) -> str:
@@ -78,7 +79,7 @@ def make_absolute(base_url: str, href: str) -> str:
     return urljoin(base_url, href)
 
 
-def extract_candidate_links(base_url: str, html: str) -> list[dict]:
+def extract_candidate_links(base_url: str, html: str, ignored_keywords: list[str] | None = None) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     candidates = []
 
@@ -93,7 +94,7 @@ def extract_candidate_links(base_url: str, html: str) -> list[dict]:
         surrounding = a.parent.get_text(" ", strip=True) if a.parent else title
         combined = f"{title} {surrounding} {full_url}"
 
-        if text_contains_keywords(combined):
+        if text_contains_keywords(combined, ignored_keywords):
             candidates.append({
                 "title": title,
                 "url": full_url,

@@ -18,10 +18,97 @@
     }
 
     h1 {
-      margin-top: 0;
-      margin-bottom: 20px;
+      margin: 0;
       font-size: 36px;
     }
+
+    h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    h1 a:hover,
+    h1 a:focus {
+      color: #1d4ed8;
+      text-decoration: underline;
+    }
+
+    .page-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px 24px;
+      margin-bottom: 20px;
+    }
+
+    .headline-nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .headline-nav a {
+      display: inline-block;
+      padding: 9px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #fff;
+      color: #334155;
+      text-decoration: none;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .headline-nav a:hover,
+    .headline-nav a:focus,
+    .headline-nav a.active {
+      border-color: #60a5fa;
+      background: #dbeafe;
+      color: #1d4ed8;
+      outline: none;
+    }
+
+    .daily-news-nav { position: relative; }
+    .daily-news-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #fff;
+      color: #334155;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .daily-news-trigger:hover,
+    .daily-news-trigger:focus,
+    .daily-news-trigger.active { border-color: #60a5fa; background: #dbeafe; color: #1d4ed8; outline: none; }
+    .daily-hamburger { display: inline-flex; width: 17px; flex-direction: column; gap: 3px; }
+    .daily-hamburger span { display: block; height: 2px; border-radius: 2px; background: currentColor; }
+    .daily-news-menu[hidden] { display: none; }
+    .daily-news-menu {
+      position: absolute;
+      top: calc(100% + 9px);
+      left: 0;
+      z-index: 40;
+      width: 285px;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+    }
+    .daily-news-menu-title { margin: 0 0 8px; color: #475569; font-size: 13px; font-weight: bold; }
+    .daily-news-menu a { display: block; margin-bottom: 5px; border: 0; border-radius: 8px; background: #f8fafc; }
+    .daily-news-menu a.active { background: #dbeafe; color: #1d4ed8; }
+    .daily-custom-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+    .daily-custom-form label { display: block; margin-bottom: 6px; color: #475569; font-size: 13px; font-weight: bold; }
+    .daily-custom-row { display: flex; gap: 7px; }
+    .daily-custom-row input { min-width: 0; flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 14px; }
+    .daily-custom-row button { padding: 8px 11px; border: 0; border-radius: 7px; background: #2563eb; color: white; cursor: pointer; }
 
     .home-button {
       display: inline-block;
@@ -36,7 +123,7 @@
 
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 16px;
       margin-bottom: 24px;
     }
@@ -53,6 +140,23 @@
       cursor: pointer;
     }
 
+    .summary-card-link {
+      display: block;
+      color: inherit;
+      text-decoration: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .summary-card-link:hover,
+    .summary-card-link:focus,
+    .summary-card-link.active,
+    .summary-card.nav-card.active {
+      border-color: #60a5fa;
+      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.14);
+      transform: translateY(-1px);
+      outline: none;
+    }
+
     .summary-card .label {
       font-size: 13px;
       color: #666;
@@ -63,6 +167,39 @@
       font-size: 28px;
       font-weight: bold;
     }
+
+    .summary-card.type-news { border-top: 4px solid #059669; }
+    .summary-card.type-paper { border-top: 4px solid #2563eb; }
+    .summary-card.type-event { border-top: 4px solid #ea580c; }
+    .summary-card.type-company { border-top: 4px solid #7c3aed; }
+    .summary-card.type-policy { border-top: 4px solid #dc2626; }
+    .summary-card.type-thinktank { border-top: 4px solid #0891b2; }
+    .summary-card.type-trend { border-top: 4px solid #db2777; }
+
+    .trend-keyword-card { margin-bottom: 22px; padding: 20px; border: 1px solid #e2e8f0; border-top: 4px solid #db2777; border-radius: 14px; background: white; box-shadow: 0 5px 18px rgba(15, 23, 42, 0.06); }
+    .trend-keyword-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .trend-keyword-header h3 { margin: 0; color: #0f172a; font-size: 22px; }
+    .trend-comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .trend-result-panel { min-width: 0; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+    .trend-result-panel.region-japan { border-top: 3px solid #2563eb; }
+    .trend-result-panel.region-world { border-top: 3px solid #f59e0b; }
+    .trend-region-heading { display: flex; align-items: center; justify-content: space-between; margin: 0 0 12px; font-size: 18px; }
+    .trend-region-label { padding: 3px 10px; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 12px; }
+    .trend-result-text { margin: 0 0 10px; color: #334155; line-height: 1.7; }
+    .trend-ranking-title { margin: 14px 0 7px; color: #334155; font-weight: 700; }
+    .trend-result-ranking { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 14px; margin: 0; padding-left: 24px; color: #334155; line-height: 1.55; }
+    .trend-result-ranking li::marker { color: #db2777; font-weight: 700; }
+    .trend-unavailable { display: grid; min-height: 290px; place-items: center; padding: 24px; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; text-align: center; line-height: 1.7; }
+    .trend-panel-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; font-size: 13px; }
+    .trend-result-chart-wrap { position: relative; padding-left: 34px; }
+    .trend-result-chart { width: 100%; height: 170px; border-radius: 8px; background: white; }
+    .trend-result-chart polyline { fill: none; stroke: #db2777; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .trend-result-y-label { position: absolute; left: 0; color: #64748b; font-size: 11px; }
+    .trend-result-y-top { top: -3px; }
+    .trend-result-y-middle { top: 78px; }
+    .trend-result-y-bottom { bottom: 21px; }
+    .trend-result-x-axis { display: flex; justify-content: space-between; margin-top: 4px; color: #64748b; font-size: 12px; }
+    .trend-result-axis-description { margin: 5px 0 0; text-align: center; color: #64748b; font-size: 12px; }
 
     .event-nav-popover {
       position: absolute;
@@ -82,7 +219,6 @@
     }
 
     .nav-card.open .event-nav-popover,
-    .nav-card:hover .event-nav-popover,
     .nav-card:focus-within .event-nav-popover {
       opacity: 1;
       visibility: visible;
@@ -124,6 +260,63 @@
       font-size: 12px;
       color: #64748b;
     }
+
+    .news-menu-trigger {
+      position: absolute;
+      top: 50%;
+      right: 16px;
+      width: 34px;
+      height: 30px;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      padding: 6px;
+      border-radius: 7px;
+      background: #eff6ff;
+      box-sizing: border-box;
+    }
+
+    .news-menu-trigger span {
+      display: block;
+      height: 2px;
+      border-radius: 2px;
+      background: #2563eb;
+    }
+
+    .news-category-menu {
+      width: 270px;
+      padding: 10px;
+      max-height: min(520px, 75vh);
+      overflow-y: auto;
+    }
+
+    .news-category-menu .event-nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .news-category-menu .event-nav-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: transparent;
+    }
+
+    .news-category-menu .event-nav-link::after { content: "›"; color: #94a3b8; font-size: 18px; }
+    .news-category-menu .event-nav-link:hover { background: #eff6ff; }
+    .news-category-menu .event-nav-link.active { background: #dbeafe; color: #1d4ed8; font-weight: bold; }
+    .paper-source-group { margin-top: 6px; border-top: 1px solid #e2e8f0; padding-top: 6px; }
+    .paper-source-link { font-weight: bold; background: #f8fafc !important; }
+    .paper-source-link.active { background: #dbeafe !important; }
+    .paper-subcategories { margin: 4px 0 8px 14px; padding-left: 8px; border-left: 3px solid #bfdbfe; }
+    .paper-subcategories .event-nav-link { font-size: 12px; padding: 8px 9px; }
+    .paper-empty-note { display: block; padding: 7px 10px; color: #94a3b8; font-size: 12px; }
 
     .layout {
       display: grid;
@@ -411,6 +604,167 @@
       color: #666;
     }
 
+    .pagination {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .pagination a,
+    .pagination span {
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: white;
+      color: #334155;
+      text-decoration: none;
+    }
+
+    .pagination a { color: #1d4ed8; }
+    .pagination .disabled { color: #94a3b8; background: #f8fafc; }
+
+    .calendar-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin: 4px 0 16px;
+    }
+
+    .calendar-toolbar h3 { margin: 0; font-size: 24px; }
+    .calendar-nav {
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      color: #1d4ed8;
+      background: #fff;
+      text-decoration: none;
+    }
+
+    .calendar-scroll { overflow-x: auto; }
+    .event-calendar {
+      min-width: 760px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .calendar-weekdays,
+    .calendar-week {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+
+    .calendar-weekday {
+      padding: 9px;
+      text-align: center;
+      background: #f1f5f9;
+      border-right: 1px solid #dbe4f0;
+      color: #475569;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .calendar-weekday:last-child { border-right: 0; }
+    .calendar-day {
+      min-height: 126px;
+      padding: 8px;
+      border-top: 1px solid #dbe4f0;
+      border-right: 1px solid #dbe4f0;
+      background: #fff;
+      box-sizing: border-box;
+    }
+
+    .calendar-day:nth-child(7n) { border-right: 0; }
+    .calendar-day.outside { background: #f8fafc; color: #94a3b8; }
+    .calendar-day-number { display: block; margin-bottom: 7px; font-size: 13px; font-weight: bold; }
+    .calendar-events { display: flex; flex-direction: column; gap: 5px; }
+    .calendar-event {
+      width: 100%;
+      padding: 6px 7px;
+      border: 0;
+      border-left: 4px solid #ea580c;
+      border-radius: 6px;
+      background: #fff7ed;
+      color: #9a3412;
+      text-align: left;
+      font-size: 12px;
+      line-height: 1.35;
+      cursor: pointer;
+    }
+
+    .calendar-event:hover, .calendar-event:focus { background: #ffedd5; outline: 2px solid #fdba74; }
+    .calendar-event.country-japan { border-left-color: #2563eb; background: #eff6ff; color: #1e40af; }
+    .calendar-event.country-japan:hover, .calendar-event.country-japan:focus { background: #dbeafe; outline-color: #93c5fd; }
+    .calendar-event.country-usa { border-left-color: #7c3aed; background: #f5f3ff; color: #5b21b6; }
+    .calendar-event.country-usa:hover, .calendar-event.country-usa:focus { background: #ede9fe; outline-color: #c4b5fd; }
+    .calendar-event.country-china { border-left-color: #dc2626; background: #fef2f2; color: #991b1b; }
+    .calendar-event.country-china:hover, .calendar-event.country-china:focus { background: #fee2e2; outline-color: #fca5a5; }
+    .calendar-event.country-korea { border-left-color: #059669; background: #ecfdf5; color: #065f46; }
+    .calendar-event.country-korea:hover, .calendar-event.country-korea:focus { background: #d1fae5; outline-color: #6ee7b7; }
+    .calendar-event.country-other { border-left-color: #64748b; background: #f8fafc; color: #334155; }
+    .calendar-event.country-other:hover, .calendar-event.country-other:focus { background: #f1f5f9; outline-color: #cbd5e1; }
+    .calendar-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin: -4px 0 14px;
+      color: #475569;
+      font-size: 13px;
+    }
+    .calendar-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .calendar-legend-color { width: 12px; height: 12px; border-radius: 3px; }
+    .calendar-legend-color.country-japan { background: #2563eb; }
+    .calendar-legend-color.country-usa { background: #7c3aed; }
+    .calendar-legend-color.country-china { background: #dc2626; }
+    .calendar-legend-color.country-korea { background: #059669; }
+    .calendar-legend-color.country-other { background: #64748b; }
+    .undated-events { margin-top: 20px; }
+    .undated-events h3 { margin-bottom: 10px; font-size: 18px; }
+
+    .event-modal[hidden] { display: none; }
+    .event-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.58);
+    }
+
+    .event-modal-dialog {
+      position: relative;
+      width: min(620px, 100%);
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 24px;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+    }
+
+    .event-modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 50%;
+      background: #f1f5f9;
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .event-modal-dialog h3 { margin: 0 42px 14px 0; font-size: 24px; line-height: 1.4; }
+    .event-modal-meta { margin-bottom: 14px; color: #475569; line-height: 1.7; }
+    .event-modal-summary { line-height: 1.7; white-space: pre-wrap; }
+
     @media (max-width: 1100px) {
       .summary-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -420,60 +774,157 @@
         grid-template-columns: 1fr;
       }
     }
+
+    @media (max-width: 800px) {
+      .trend-comparison-grid { grid-template-columns: 1fr; }
+      .trend-keyword-card { padding: 14px; }
+      .trend-result-ranking { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
   <div class="page">
-    <h1>{{ page_title }}</h1>
+    <header class="page-header">
+      <h1><a href="/" aria-label="インデックスに戻る">{{ page_title }}</a></h1>
+      <nav class="headline-nav" aria-label="ニュース表示範囲">
+        <a href="{{ all_news_href }}" {% if is_all_news_view %}class="active" aria-current="page"{% endif %}>すべてのニュース</a>
+        {% if is_export_result_view %}
+        <div class="daily-news-nav">
+          <button type="button" class="daily-news-trigger active" aria-expanded="false" aria-controls="daily-news-menu">
+            <span>検索結果のエクスポート</span>
+            <span class="daily-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>
+          </button>
+          <div class="daily-news-menu" id="daily-news-menu" hidden>
+            <div class="daily-news-menu-title">検索結果PDFの操作を選択</div>
+            <a href="{{ search_results_pdf_open_href }}" target="_blank" rel="noopener">PDFを開く</a>
+            <a href="{{ search_results_pdf_download_href }}">PDFをダウンロード</a>
+          </div>
+        </div>
+        {% else %}
+        <div class="daily-news-nav">
+          <button type="button" class="daily-news-trigger {% if is_daily_news_view %}active{% endif %}" aria-expanded="false" aria-controls="daily-news-menu">
+            <span>デイリーニュース</span>
+            <span class="daily-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>
+          </button>
+          <div class="daily-news-menu" id="daily-news-menu" hidden>
+            <div class="daily-news-menu-title">取得日を選択</div>
+            <a href="{{ today_news_href }}" {% if is_today_news_view %}class="active" aria-current="page"{% endif %}>今日</a>
+            <a href="{{ yesterday_news_href }}" {% if is_yesterday_news_view %}class="active" aria-current="page"{% endif %}>昨日</a>
+            <form class="daily-custom-form" method="get" action="/">
+              <label for="daily-custom-date">カスタム日</label>
+              <div class="daily-custom-row">
+                <input type="date" id="daily-custom-date" name="crawl_date" value="{{ current_crawl_date or request.args.get('crawl_date', '') }}" required>
+                <button type="submit">表示</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+        {% if is_daily_news_view and not is_export_result_view %}
+        <div class="daily-news-nav pdf-actions-nav">
+          <button type="button" class="daily-news-trigger pdf-actions-trigger" aria-expanded="false" aria-controls="pdf-actions-menu">
+            <span>デイリーニュースPDF作成</span>
+            <span class="daily-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>
+          </button>
+          <div class="daily-news-menu pdf-actions-menu" id="pdf-actions-menu" hidden>
+            <div class="daily-news-menu-title">PDFの操作を選択</div>
+            <a href="{{ daily_news_pdf_open_href }}" target="_blank" rel="noopener">PDFを開く</a>
+            <a href="{{ daily_news_pdf_download_href }}">PDFをダウンロード</a>
+          </div>
+        </div>
+        {% endif %}
+      </nav>
+    </header>
     {% if request.path != "/" %}<a class="home-button" href="/">ホーム</a>{% endif %}
 
     <div class="summary-grid">
-      <div class="summary-card">
-        <div class="label">総件数</div>
-        <div class="value">{{ total_count }}</div>
-      </div>
-      <div class="summary-card">
-        <div class="label">論文</div>
-        <div class="value">{{ type_counts.get("paper", 0) }}</div>
-      </div>
-      <div class="summary-card nav-card" tabindex="0" aria-expanded="false">
-        <div class="label">ニュース</div>
-        <div class="value">{{ type_counts.get("news", 0) }}</div>
-        {% if news_category_shortcuts %}
-          <div class="event-nav-popover">
-            <div class="event-nav-title">中分類・小分類でニュース表示</div>
-            <div class="event-nav-list">
-              {% for tab in news_category_shortcuts %}
-                <a class="event-nav-link" href="{{ tab.href }}">
-                  {{ tab.label }} ({{ tab.count }})
-                </a>
-              {% endfor %}
+      {% for tile in source_type_tiles %}
+        {% if tile.type == "news" %}
+        <div class="summary-card nav-card type-news {% if tile.active %}active{% endif %}" tabindex="0" role="button" aria-label="ニュースカテゴリメニューを開く" aria-expanded="false">
+          <div class="label">種別</div>
+          <div class="value">news</div>
+          <div>{{ tile.count }}件</div>
+          <span class="news-menu-trigger" aria-hidden="true"><span></span><span></span><span></span></span>
+          {% if news_category_shortcuts %}
+            <div class="event-nav-popover news-category-menu">
+              <div class="event-nav-title">ニュースカテゴリを選択</div>
+              <div class="event-nav-list">
+                {% for tab in news_category_shortcuts %}
+                  <a class="event-nav-link {% if tab.active %}active{% endif %}" href="{{ tab.href }}">{{ tab.label }}</a>
+                {% endfor %}
+              </div>
             </div>
-            <div class="event-nav-note">ニュースカードをクリックすると固定表示されます。</div>
-          </div>
-        {% endif %}
-      </div>
-      <div class="summary-card">
-        <div class="label">GitHub</div>
-        <div class="value">{{ type_counts.get("github", 0) }}</div>
-      </div>
-      <div class="summary-card nav-card event-card" tabindex="0" aria-expanded="false">
-        <div class="label">イベント</div>
-        <div class="value">{{ type_counts.get("event", 0) }}</div>
-        {% if event_country_shortcuts %}
-          <div class="event-nav-popover">
-            <div class="event-nav-title">国別でイベント表示</div>
-            <div class="event-nav-list">
-              {% for tab in event_country_shortcuts %}
-                <a class="event-nav-link" href="{{ tab.href }}">
-                  {{ tab.label }} ({{ tab.count }})
+          {% endif %}
+        </div>
+        {% elif tile.type == "paper" %}
+        <div class="summary-card nav-card type-paper {% if tile.active %}active{% endif %}" tabindex="0" role="button" aria-label="論文サブカテゴリメニューを開く" aria-expanded="false">
+          <div class="label">種別</div>
+          <div class="value">paper</div>
+          <div>{{ tile.count }}件</div>
+          <span class="news-menu-trigger" aria-hidden="true"><span></span><span></span><span></span></span>
+          {% if paper_category_shortcuts %}
+            <div class="event-nav-popover news-category-menu">
+              <div class="event-nav-title">論文の情報元・分野を選択</div>
+              <div class="event-nav-list">
+                {% set all_papers = paper_category_shortcuts[0] %}
+                <a class="event-nav-link {% if all_papers.active %}active{% endif %}" href="{{ all_papers.href }}">
+                  <span>{{ all_papers.label }}</span><small>{{ all_papers.count }}件</small>
                 </a>
-              {% endfor %}
+                {% for group in paper_source_groups %}
+                <div class="paper-source-group">
+                  <a class="event-nav-link paper-source-link {% if group.active %}active{% endif %}" href="{{ group.href }}">
+                    <span>{{ group.label }}</span><small>{{ group.count }}件</small>
+                  </a>
+                  {% if group.categories %}
+                  <div class="paper-subcategories">
+                    {% for tab in group.categories %}
+                    <a class="event-nav-link {% if tab.active %}active{% endif %}" href="{{ tab.href }}">
+                      <span>{{ tab.label }}</span><small>{{ tab.count }}件</small>
+                    </a>
+                    {% endfor %}
+                  </div>
+                  {% else %}
+                  <span class="paper-empty-note">小分類メタデータなし</span>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
             </div>
-            <div class="event-nav-note">イベントカードにマウスを重ねると表示されます。</div>
-          </div>
+          {% endif %}
+        </div>
+        {% elif tile.type == "event" %}
+        <a class="summary-card summary-card-link event-card type-event {% if tile.active %}active{% endif %}" href="{{ tile.href }}" aria-label="イベントカレンダーを表示">
+          <div class="label">種別</div>
+          <div class="value">event</div>
+          <div>{{ tile.count }}件</div>
+        </a>
+        {% elif tile.type == "thinktank" %}
+        <div class="summary-card nav-card type-thinktank {% if tile.active %}active{% endif %}" tabindex="0" role="button" aria-label="シンクタンク企業別メニューを開く" aria-expanded="false">
+          <div class="label">種別</div>
+          <div class="value">thinktank</div>
+          <div>{{ tile.count }}件</div>
+          <span class="news-menu-trigger" aria-hidden="true"><span></span><span></span><span></span></span>
+          {% if thinktank_shortcuts %}
+            <div class="event-nav-popover news-category-menu">
+              <div class="event-nav-title">シンクタンク企業を選択</div>
+              <div class="event-nav-list">
+                {% for tab in thinktank_shortcuts %}
+                <a class="event-nav-link {% if tab.active %}active{% endif %}" href="{{ tab.href }}">
+                  <span>{{ tab.label }}</span><small>{{ tab.count }}件</small>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <a class="summary-card summary-card-link type-{{ tile.type }} {% if tile.active %}active{% endif %}" href="{{ tile.href }}" aria-label="{{ tile.type }}を表示">
+          <div class="label">種別</div>
+          <div class="value">{{ tile.type }}</div>
+          <div>{{ tile.count }}件</div>
+        </a>
         {% endif %}
-      </div>
+      {% endfor %}
     </div>
 
     <div class="layout">
@@ -531,9 +982,20 @@
           </form>
         </div>
         <form method="get" action="{{ filter_form_action }}">
+          {% if current_source_type == "event" and event_calendar %}
+          <input type="hidden" name="calendar_month" value="{{ event_calendar.month }}">
+          {% endif %}
           <div class="field">
             <label for="q">キーワード</label>
             <input type="text" name="q" id="q" value="{{ current_q }}">
+          </div>
+
+          <div class="field">
+            <label for="crawl_date">クローラ実行日（日本時間）</label>
+            <input type="date" name="crawl_date" id="crawl_date" value="{{ current_crawl_date }}" list="recent-crawl-dates">
+            <datalist id="recent-crawl-dates">
+              {% for crawl in recent_crawl_dates %}<option value="{{ crawl.date }}">{{ crawl.count }}件</option>{% endfor %}
+            </datalist>
           </div>
 
           <div class="field">
@@ -600,6 +1062,29 @@
           </div>
           {% endif %}
 
+          {% if current_source_type == "paper" %}
+          <div class="field">
+            <label for="paper_source">論文の中カテゴリ</label>
+            <select name="paper_source" id="paper_source">
+              <option value="">すべて</option>
+              {% for group in paper_source_groups %}
+                <option value="{{ group.key }}" {% if current_paper_source == group.key %}selected{% endif %}>{{ group.label }} ({{ group.count }}件)</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if current_paper_source != "ieee" %}
+          <div class="field">
+            <label for="paper_category">arXiv小カテゴリ</label>
+            <select name="paper_category" id="paper_category">
+              <option value="">すべて</option>
+              {% for tab in paper_category_shortcuts[1:] %}
+                <option value="{{ tab.value }}" {% if current_paper_category == tab.value %}selected{% endif %}>{{ tab.label }} ({{ tab.count }}件)</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          {% endif %}
+
           <div class="field">
             <label for="sort">並び替え項目</label>
             <select name="sort" id="sort">
@@ -620,6 +1105,15 @@
           </div>
 
           <div class="field">
+            <label for="per_page">1ページの表示件数</label>
+            <select name="per_page" id="per_page">
+              {% for option in per_page_options %}
+                <option value="{{ option }}" {% if pagination.per_page == option %}selected{% endif %}>{{ option }}件</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
             <button type="submit">適用</button>
           </div>
 
@@ -631,10 +1125,109 @@
 
       <div class="panel results-panel">
         <h2>検索結果</h2>
-        <div class="result-meta">{{ items|length }} 件表示</div>
+        {% if current_crawl_date %}<div class="collector-help">クローラ実行日: {{ current_crawl_date }}（日本時間）</div>{% endif %}
+        <div class="result-meta">全{{ pagination.total }}件中 {{ pagination.start }}〜{{ pagination.end }}件を表示</div>
 
-        {% if items %}
-          {% if event_groups %}
+        {% if event_calendar %}
+          <div class="calendar-toolbar">
+            <a class="calendar-nav" href="{{ event_calendar.prev_url }}" aria-label="前の月">← 前月</a>
+            <h3>{{ event_calendar.label }}</h3>
+            <a class="calendar-nav" href="{{ event_calendar.next_url }}" aria-label="次の月">翌月 →</a>
+          </div>
+          {% if event_calendar.country_legend %}
+          <div class="calendar-legend" aria-label="国・地域別の色分け">
+            {% for legend in event_calendar.country_legend %}
+            <span class="calendar-legend-item"><span class="calendar-legend-color country-{{ legend.style }}"></span>{{ legend.country }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="calendar-scroll">
+            <div class="event-calendar" aria-label="{{ event_calendar.label }}のイベントカレンダー">
+              <div class="calendar-weekdays">
+                {% for weekday in ["月", "火", "水", "木", "金", "土", "日"] %}<div class="calendar-weekday">{{ weekday }}</div>{% endfor %}
+              </div>
+              {% for week in event_calendar.weeks %}
+              <div class="calendar-week">
+                {% for day in week %}
+                <div class="calendar-day {% if not day.in_month %}outside{% endif %}">
+                  <span class="calendar-day-number">{{ day.day }}</span>
+                  {% if day.in_month %}
+                  <div class="calendar-events">
+                    {% for item in day.events %}
+                    <button type="button" class="calendar-event country-{{ item.event_country_style }}"
+                      data-title="{{ item.display_title }}"
+                      data-period="{{ item.event_period }}"
+                      data-location="{{ item.event_location }}"
+                      data-country="{{ item.event_country }}"
+                      data-source="{{ item.source_name }}"
+                      data-summary="{{ item.display_summary }}"
+                      data-detail-url="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}">[{{ item.event_country }}] {{ item.display_title }}</button>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% if event_calendar.undated_items %}
+          <div class="undated-events">
+            <h3>開催日未定・日付不明</h3>
+            <div class="calendar-events">
+              {% for item in event_calendar.undated_items %}
+              <button type="button" class="calendar-event country-{{ item.event_country_style }}"
+                data-title="{{ item.display_title }}" data-period="{{ item.event_period }}"
+                data-location="{{ item.event_location }}" data-country="{{ item.event_country }}"
+                data-source="{{ item.source_name }}" data-summary="{{ item.display_summary }}"
+                data-detail-url="/raw/{{ item.id }}?return_to={{ current_list_url | urlencode }}">[{{ item.event_country }}] {{ item.display_title }}</button>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        {% elif items or trend_result_groups %}
+          {% if trend_result_groups %}
+            {% for group in trend_result_groups %}
+            <section class="trend-keyword-card">
+              <div class="trend-keyword-header">
+                <h3>{{ group.keyword }}</h3>
+                <span class="badge trend">Google Trends</span>
+              </div>
+              <div class="trend-comparison-grid">
+                {% for trend in group.series %}
+                <article class="trend-result-panel {% if trend.region == '日本' %}region-japan{% else %}region-world{% endif %}">
+                  <h4 class="trend-region-heading"><span>{{ trend.region }}</span><span class="trend-region-label">過去7日間</span></h4>
+                  {% if trend.available %}
+                  <p class="trend-result-text">検索関心度は、最新値 <strong>{{ trend.latest_value }}</strong>、平均値 <strong>{{ trend.average_value }}</strong>、最高値 <strong>{{ trend.peak_value }}</strong> でした。</p>
+                  <div class="trend-result-chart-wrap">
+                    <span class="trend-result-y-label trend-result-y-top">100</span>
+                    <span class="trend-result-y-label trend-result-y-middle">50</span>
+                    <span class="trend-result-y-label trend-result-y-bottom">0</span>
+                    <svg class="trend-result-chart" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="{{ trend.keyword }} {{ trend.region }}の過去7日間の推移"><polyline points="{{ trend.points }}"/></svg>
+                    <div class="trend-result-x-axis"><span>{{ trend.start_date }}</span><span>時間 →</span><span>{{ trend.end_date }}</span></div>
+                    <p class="trend-result-axis-description">横軸: 過去7日間（{{ trend.interval_label }}、{{ trend.point_count }}点）<br>縦軸: 検索関心度（0〜100）</p>
+                  </div>
+                  <p class="trend-ranking-title">地域別インタレスト 上位5件</p>
+                  {% if trend.rankings %}
+                  <ol class="trend-result-ranking">
+                    {% for ranking in trend.rankings %}<li>{{ ranking.name }}（{{ ranking.value }}）</li>{% endfor %}
+                  </ol>
+                  {% else %}
+                  <p class="trend-result-text">地域別のインタレストは取得できませんでした。</p>
+                  {% endif %}
+                  <div class="trend-panel-links">
+                    <a href="{{ trend.explore_url }}" target="_blank" rel="noopener noreferrer">Google Trendsで開く</a>
+                    <a href="{{ trend.detail_url }}?return_to={{ current_list_url | urlencode }}">取得データの詳細</a>
+                  </div>
+                  {% else %}
+                  <div class="trend-unavailable">{{ trend.region }}の検索データを取得できませんでした。<br>次回のクロール結果をご確認ください。</div>
+                  {% endif %}
+                </article>
+                {% endfor %}
+              </div>
+            </section>
+            {% endfor %}
+          {% elif event_groups %}
             {% for group in event_groups %}
               <div class="country-section">
                 <h3 class="country-heading">{{ group["country"] }} ({{ group["items"]|length }}件)</h3>
@@ -720,11 +1313,76 @@
         {% else %}
           <div class="empty">条件に一致するデータがありません。</div>
         {% endif %}
+
+        {% if pagination.pages > 1 %}
+          <nav class="pagination" aria-label="検索結果のページ">
+            {% if pagination.has_prev %}<a href="{{ pagination.prev_url }}">← 前へ</a>{% else %}<span class="disabled">← 前へ</span>{% endif %}
+            <span>{{ pagination.page }} / {{ pagination.pages }}ページ</span>
+            {% if pagination.has_next %}<a href="{{ pagination.next_url }}">次へ →</a>{% else %}<span class="disabled">次へ →</span>{% endif %}
+          </nav>
+        {% endif %}
       </div>
+    </div>
+  </div>
+  <div class="event-modal" id="event-modal" role="dialog" aria-modal="true" aria-labelledby="event-modal-title" hidden>
+    <div class="event-modal-dialog">
+      <button type="button" class="event-modal-close" aria-label="閉じる">×</button>
+      <h3 id="event-modal-title"></h3>
+      <div class="event-modal-meta" id="event-modal-meta"></div>
+      <div class="event-modal-summary" id="event-modal-summary"></div>
+      <a class="detail-link" id="event-modal-detail" href="#">詳細画面を開く</a>
     </div>
   </div>
   <script>
     (() => {
+      const dailyTrigger = document.querySelector('.daily-news-trigger');
+      const dailyMenu = document.getElementById('daily-news-menu');
+      const closeDailyMenu = () => {
+        if (!dailyTrigger || !dailyMenu) return;
+        dailyMenu.hidden = true;
+        dailyTrigger.setAttribute('aria-expanded', 'false');
+      };
+      if (dailyTrigger && dailyMenu) {
+        dailyTrigger.addEventListener('click', () => {
+          const shouldOpen = dailyMenu.hidden;
+          closeDailyMenu();
+          if (shouldOpen) {
+            dailyMenu.hidden = false;
+            dailyTrigger.setAttribute('aria-expanded', 'true');
+          }
+        });
+        document.addEventListener('click', (event) => {
+          if (!event.target.closest('.daily-news-nav')) closeDailyMenu();
+        });
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') closeDailyMenu();
+        });
+      }
+
+      const pdfActionsTrigger = document.querySelector('.pdf-actions-trigger');
+      const pdfActionsMenu = document.getElementById('pdf-actions-menu');
+      const closePdfActionsMenu = () => {
+        if (!pdfActionsTrigger || !pdfActionsMenu) return;
+        pdfActionsMenu.hidden = true;
+        pdfActionsTrigger.setAttribute('aria-expanded', 'false');
+      };
+      if (pdfActionsTrigger && pdfActionsMenu) {
+        pdfActionsTrigger.addEventListener('click', () => {
+          const shouldOpen = pdfActionsMenu.hidden;
+          closePdfActionsMenu();
+          if (shouldOpen) {
+            pdfActionsMenu.hidden = false;
+            pdfActionsTrigger.setAttribute('aria-expanded', 'true');
+          }
+        });
+        document.addEventListener('click', (event) => {
+          if (!event.target.closest('.pdf-actions-nav')) closePdfActionsMenu();
+        });
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') closePdfActionsMenu();
+        });
+      }
+
       document.querySelectorAll('.language-toggle').forEach((button) => {
         button.addEventListener('click', () => {
           const card = button.closest('.result-card');
@@ -733,6 +1391,35 @@
           button.textContent = showOriginal ? '日本語訳を表示' : '原文を表示';
         });
       });
+
+      const modal = document.getElementById('event-modal');
+      const closeModal = () => {
+        if (!modal) return;
+        modal.hidden = true;
+        document.body.style.overflow = '';
+      };
+      document.querySelectorAll('.calendar-event').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (!modal) return;
+          document.getElementById('event-modal-title').textContent = button.dataset.title || '';
+          const meta = [
+            button.dataset.period ? `開催期間: ${button.dataset.period}` : '',
+            button.dataset.location ? `会場: ${button.dataset.location}` : '',
+            button.dataset.country ? `国・地域: ${button.dataset.country}` : '',
+            button.dataset.source ? `情報元: ${button.dataset.source}` : ''
+          ].filter(Boolean);
+          document.getElementById('event-modal-meta').textContent = meta.join(' / ');
+          document.getElementById('event-modal-summary').textContent = button.dataset.summary || '要約なし';
+          document.getElementById('event-modal-detail').href = button.dataset.detailUrl || '#';
+          modal.hidden = false;
+          document.body.style.overflow = 'hidden';
+          modal.querySelector('.event-modal-close').focus();
+        });
+      });
+      if (modal) {
+        modal.querySelector('.event-modal-close').addEventListener('click', closeModal);
+        modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+      }
 
       const navCards = document.querySelectorAll('.nav-card');
       if (!navCards.length) return;
@@ -755,6 +1442,12 @@
             card.setAttribute('aria-expanded', 'true');
           }
         });
+        card.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          if (isLinkClick(event.target)) return;
+          event.preventDefault();
+          card.click();
+        });
       });
 
       document.addEventListener('click', (event) => {
@@ -764,6 +1457,7 @@
 
       document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
+        closeModal();
         closeAll();
       });
     })();

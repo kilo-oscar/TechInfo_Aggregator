@@ -3,4 +3,5 @@ __pycache__/
 .venv/
 .env
 instance/translation_usage.json
+instance/sent_daily_pdf_dates.json
 instance/*.db

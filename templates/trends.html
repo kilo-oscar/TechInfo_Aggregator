@@ -15,8 +15,8 @@
     .card h2 { margin: 0 0 14px; }
     .series { margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0; }
     .series-head { display: flex; justify-content: space-between; align-items: center; }
-    .metrics { display: flex; gap: 16px; margin: 10px 0; font-size: 14px; }
-    .metrics strong { display: block; font-size: 22px; }
+    .trend-summary { margin: 10px 0; color: #334155; line-height: 1.7; font-size: 14px; }
+    .ranking-summary { margin: 8px 0 12px; padding: 10px 12px; border-radius: 8px; background: #f8fafc; color: #334155; line-height: 1.8; font-size: 14px; }
     .chart { width: 100%; height: 150px; background: #f8fafc; border-radius: 8px; }
     .chart polyline { fill: none; stroke: #2563eb; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
     .world polyline { stroke: #f59e0b; }
@@ -27,13 +27,13 @@
     .axis-description { margin: 5px 0 0; text-align: center; color: #64748b; font-size: 12px; }
     .error { padding: 12px; background: #fff7ed; color: #9a3412; border-radius: 8px; font-size: 13px; }
     .empty { padding: 30px; background: white; border: 1px solid #dbe4f0; border-radius: 12px; text-align: center; }
-    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } .metrics { flex-wrap: wrap; } }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <main class="page">
     <h1>Physical AI Google Trends</h1>
-    <p class="lead">Physical AI関連キーワードの過去12か月の検索関心度を、日本と世界で比較します。値は各条件内の最高点を100とする相対値です。</p>
+    <p class="lead">Physical AI関連キーワードの過去7日間の検索関心度と、地域別インタレスト上位5件を日本と世界で表示します。値は各条件内の最高点を100とする相対値です。</p>
     <div class="actions"><a class="button" href="/">ホーム</a><a class="button" href="/reports">月次レポート</a></div>
     {% if keyword_groups %}
       <div class="grid">
@@ -44,16 +44,19 @@
               <div class="series {% if series.region == '世界' %}world{% endif %}">
                 <div class="series-head"><strong>{{ series.region }}</strong><a href="{{ series.explore_url }}" target="_blank" rel="noopener">Google Trendsで開く</a></div>
                 {% if series.points %}
-                  <div class="metrics">
-                    <span>最新<strong>{{ series.latest_value }}</strong></span>
-                    <span>平均<strong>{{ series.average_value }}</strong></span>
-                    <span>最高<strong>{{ series.peak_value }}</strong></span>
-                  </div>
+                  <p class="trend-summary">過去7日間の検索関心度は、最新値 <strong>{{ series.latest_value }}</strong>、平均値 <strong>{{ series.average_value }}</strong>、最高値 <strong>{{ series.peak_value }}</strong> でした。</p>
+                  {% if series.rankings %}
+                  <p class="ranking-summary">地域別のインタレスト上位5件（{{ series.region }}）:<br>
+                    {% for ranking in series.rankings %}<strong>{{ ranking.rank }}位</strong> {{ ranking.name }}（{{ ranking.value }}）{% if not loop.last %}、{% endif %}{% endfor %}
+                  </p>
+                  {% else %}
+                  <p class="ranking-summary">地域別のインタレストは、検索量不足などにより上位5件を取得できませんでした。</p>
+                  {% endif %}
                   <div class="chart-wrap">
                     <span class="y-label y-top">100</span><span class="y-label y-middle">50</span><span class="y-label y-bottom">0</span>
                     <svg class="chart" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="{{ group.keyword }} {{ series.region }}の推移"><polyline points="{{ series.points }}"/></svg>
                     <div class="x-axis"><span>{{ series.start_date }}</span><span>時間 →</span><span>{{ series.end_date }}</span></div>
-                    <p class="axis-description">横軸: 日付（{{ series.interval_label }}、{{ series.point_count }}点） / 縦軸: 検索関心度（0〜100）</p>
+                    <p class="axis-description">横軸: 過去7日間（{{ series.interval_label }}、{{ series.point_count }}点） / 縦軸: 検索関心度（0〜100）</p>
                   </div>
                 {% else %}
                   <p class="error">データを取得できませんでした。公式Exploreリンクから確認できます。{% if series.error %}<br>{{ series.error }}{% endif %}</p>
@@ -64,7 +67,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <div class="empty"><code>python3 -m crawlers.google_trends_crawler</code> を実行するとトレンドが表示されます。</div>
+      <div class="empty"><code>python3 -m crawlers.google_trends_crawler</code> を実行すると、過去7日間のトレンドと地域別上位5件が表示されます。</div>
     {% endif %}
     <p class="note">出典: Google Trends。低検索量の語は0と表示される場合があり、地域間の値は検索量そのものではありません。</p>
   </main>
