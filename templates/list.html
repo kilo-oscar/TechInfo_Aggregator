@@ -765,6 +765,44 @@
     .event-modal-meta { margin-bottom: 14px; color: #475569; line-height: 1.7; }
     .event-modal-summary { line-height: 1.7; white-space: pre-wrap; }
 
+    .processing-overlay[hidden] { display: none; }
+    .processing-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(15, 23, 42, 0.62);
+    }
+
+    .processing-dialog {
+      width: min(360px, 100%);
+      padding: 28px 24px;
+      border-radius: 16px;
+      background: #fff;
+      color: #0f172a;
+      text-align: center;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.34);
+    }
+
+    .processing-spinner {
+      width: 38px;
+      height: 38px;
+      margin: 0 auto 16px;
+      border: 4px solid #dbeafe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: processing-spin 0.8s linear infinite;
+    }
+
+    .processing-dialog h2 { margin: 0 0 8px; font-size: 20px; }
+    .processing-dialog p { margin: 0; color: #475569; line-height: 1.6; }
+
+    @keyframes processing-spin {
+      to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 1100px) {
       .summary-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -783,6 +821,13 @@
   </style>
 </head>
 <body>
+  <div class="processing-overlay" id="processing-overlay" role="dialog" aria-modal="true" aria-labelledby="processing-title" hidden>
+    <div class="processing-dialog" tabindex="-1">
+      <div class="processing-spinner" aria-hidden="true"></div>
+      <h2 id="processing-title">処理中です</h2>
+      <p id="processing-message" role="status" aria-live="assertive">しばらくお待ちください。この間はほかの操作を行えません。</p>
+    </div>
+  </div>
   <div class="page">
     <header class="page-header">
       <h1><a href="/" aria-label="インデックスに戻る">{{ page_title }}</a></h1>
@@ -810,7 +855,7 @@
             <div class="daily-news-menu-title">取得日を選択</div>
             <a href="{{ today_news_href }}" {% if is_today_news_view %}class="active" aria-current="page"{% endif %}>今日</a>
             <a href="{{ yesterday_news_href }}" {% if is_yesterday_news_view %}class="active" aria-current="page"{% endif %}>昨日</a>
-            <form class="daily-custom-form" method="get" action="/">
+            <form class="daily-custom-form js-processing-form" method="get" action="/" data-processing-message="デイリーニュースを検索しています…">
               <label for="daily-custom-date">カスタム日</label>
               <div class="daily-custom-row">
                 <input type="date" id="daily-custom-date" name="crawl_date" value="{{ current_crawl_date or request.args.get('crawl_date', '') }}" required>
@@ -971,7 +1016,7 @@
               {% endif %}
             </div>
           {% endif %}
-          <form method="post" action="/collect-keyword">
+          <form class="js-processing-form" method="post" action="/collect-keyword" data-processing-message="キーワードを収集中です。検索結果を取得・保存しています…">
             <div class="field">
               <label for="keyword">収集キーワード</label>
               <input type="text" name="keyword" id="keyword" value="{{ current_q or collection_keyword }}">
@@ -981,7 +1026,7 @@
             </div>
           </form>
         </div>
-        <form method="get" action="{{ filter_form_action }}">
+        <form class="js-processing-form" method="get" action="{{ filter_form_action }}" data-processing-message="検索結果を表示しています…">
           {% if current_source_type == "event" and event_calendar %}
           <input type="hidden" name="calendar_month" value="{{ event_calendar.month }}">
           {% endif %}
@@ -1335,6 +1380,45 @@
   </div>
   <script>
     (() => {
+      const processingOverlay = document.getElementById('processing-overlay');
+      const processingDialog = processingOverlay?.querySelector('.processing-dialog');
+      const processingMessage = document.getElementById('processing-message');
+      let isProcessing = false;
+
+      const finishProcessing = () => {
+        isProcessing = false;
+        if (!processingOverlay) return;
+        processingOverlay.hidden = true;
+        document.body.style.overflow = '';
+        document.body.removeAttribute('aria-busy');
+      };
+
+      const startProcessing = (message) => {
+        if (isProcessing || !processingOverlay) return;
+        isProcessing = true;
+        if (processingMessage) {
+          processingMessage.textContent = message || '処理しています。しばらくお待ちください。この間はほかの操作を行えません。';
+        }
+        processingOverlay.hidden = false;
+        document.body.style.overflow = 'hidden';
+        document.body.setAttribute('aria-busy', 'true');
+        processingDialog?.focus();
+      };
+
+      document.querySelectorAll('.js-processing-form').forEach((form) => {
+        form.addEventListener('submit', () => startProcessing(form.dataset.processingMessage));
+      });
+
+      // ページ遷移の直前から完了まで、二重送信や別の画面操作を防ぐ。
+      for (const eventName of ['click', 'dblclick', 'keydown', 'submit']) {
+        document.addEventListener(eventName, (event) => {
+          if (!isProcessing || event.target.closest('#processing-overlay')) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }, true);
+      }
+      window.addEventListener('pageshow', finishProcessing);
+
       const dailyTrigger = document.querySelector('.daily-news-trigger');
       const dailyMenu = document.getElementById('daily-news-menu');
       const closeDailyMenu = () => {

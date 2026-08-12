@@ -183,6 +183,17 @@ Google News クローラ:
 python3 -m crawlers.google_news_crawler
 ```
 
+Google News クローラは、Physical AI・ロボット関連の一般検索に加え、次の国内専門媒体を対象にしたサイト限定検索も実行します。
+
+- 日経クロステック（`xtech.nikkei.com`）と同サイト内の「日経Robotics」
+- MONOist（製造業・ロボット開発）
+- ITmedia AI＋（ロボティクス）
+- ロボスタ
+- PR TIMES（ロボット・Physical AI関連のプレスリリース）
+- au Webポータル（Physical AI関連の記事）
+
+これらの記事は `Google News / Japanese Robotics Media` として保存されます。Google News RSSに掲載されている記事のみが対象であり、有料会員限定などの理由でRSSに載らない記事は収集されません。
+
 arXiv クローラ:
 
 ```bash

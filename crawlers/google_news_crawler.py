@@ -192,6 +192,15 @@ def build_query_groups() -> list[tuple[str, list[str]]]:
             '("industrial robot" OR "産業用ロボット") (launch OR release OR 発表)',
             '("ロボット 遠隔操作" OR "ロボット リモートオペレーション")',
         ]),
+        ("Google News / Japanese Robotics Media", [
+            'site:xtech.nikkei.com (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
+            'site:xtech.nikkei.com "日経Robotics"',
+            'site:monoist.itmedia.co.jp (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
+            'site:itmedia.co.jp/aiplus (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
+            'site:robotstart.info (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
+            'site:prtimes.jp (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
+            'site:article.auone.jp "フィジカルAI"',
+        ]),
         ("Startup / Robotics Japan", [
             'ロボット スタートアップ 日本',
             'robotics startup Japan',
