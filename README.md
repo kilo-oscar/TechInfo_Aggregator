@@ -163,6 +163,8 @@ Pythonアプリ、各クローラ、日次実行スクリプトは `.env` を自
 python3 -m crawlers.exhibition_crawler
 ```
 
+収集対象には、AIsmileyが主催する「AI博覧会」も含まれます。AI博覧会はロボティクス関連語が記事本文にない場合でも、公式ページであることを確認して展示会情報として保存します。
+
 検索語を自分で指定したい場合:
 
 ```bash
@@ -192,7 +194,7 @@ Google News クローラは、Physical AI・ロボット関連の一般検索に
 - PR TIMES（ロボット・Physical AI関連のプレスリリース）
 - au Webポータル（Physical AI関連の記事）
 
-これらの記事は `Google News / Japanese Robotics Media` として保存されます。Google News RSSに掲載されている記事のみが対象であり、有料会員限定などの理由でRSSに載らない記事は収集されません。
+これらの記事は `Google News / Japanese Robotics Media` として保存されます。Google News RSSに掲載されている記事のみが対象であり、有料会員限定などの理由でRSSに載らない記事は収集されません。PR TIMES と au Webポータルについては、Google News の検索結果を候補として扱い、RSS上の配信元とタイトル・要約に Physical AI / ロボティクスの文脈があることを確認してから保存します。
 
 arXiv クローラ:
 

@@ -126,6 +126,23 @@ def matches_allowed_topics(*texts: str) -> bool:
     return any(keyword in blob for keywords in TOPIC_KEYWORDS.values() for keyword in keywords)
 
 
+def matches_requested_keyword(keyword: str, *texts: str) -> bool:
+    """Require that the externally discovered item actually matches the input.
+
+    Search engines can return related or fuzzy matches.  A phrase match is
+    preferred; for a whitespace-separated query every term must be present.
+    Japanese queries without spaces are treated as one phrase.
+    """
+    normalized_keyword = normalize_text(keyword, max_length=200).lower()
+    normalized_texts = [normalize_text(text, max_length=20000).lower() for text in texts]
+    if not normalized_keyword or not any(normalized_texts):
+        return False
+    if any(normalized_keyword in text for text in normalized_texts):
+        return True
+    terms = normalized_keyword.split()
+    return len(terms) > 1 and any(all(term in text for term in terms) for text in normalized_texts)
+
+
 class KeywordCollector:
     def __init__(self) -> None:
         self.session = requests.Session()
@@ -149,7 +166,13 @@ class KeywordCollector:
         seen_urls: set[str] = set()
 
         for query in queries:
-            feed = feedparser.parse(self.format_google_news_url(query))
+            try:
+                response = self.session.get(self.format_google_news_url(query), timeout=TIMEOUT)
+                response.raise_for_status()
+            except requests.RequestException:
+                continue
+
+            feed = feedparser.parse(response.content)
             for entry in getattr(feed, "entries", []):
                 url = canonicalize_url(getattr(entry, "link", ""))
                 if not url or url in seen_urls:
@@ -157,9 +180,12 @@ class KeywordCollector:
                 seen_urls.add(url)
                 summary = normalize_text(getattr(entry, "summary", "") or "", max_length=2000)
                 title = normalize_text(getattr(entry, "title", "") or "", max_length=500)
-                if not matches_allowed_topics(keyword, title, summary):
+                if not matches_requested_keyword(keyword, title, summary):
+                    continue
+                if not matches_allowed_topics(title, summary):
                     continue
                 published_at = normalize_published(getattr(entry, "published", "") or "")
+                publisher = normalize_text(getattr(getattr(entry, "source", {}), "title", "") or "", max_length=200)
                 items.append({
                     "source_name": f"Keyword / Google News / {keyword}",
                     "source_type": "news",
@@ -171,6 +197,8 @@ class KeywordCollector:
                         summary,
                         f"Keyword collector source: Google News RSS",
                         f"Keyword: {keyword}",
+                        f"Google News query: {query}",
+                        *( [f"Publisher: {publisher}"] if publisher else [] ),
                     ]).strip(),
                 })
         return items
@@ -224,9 +252,7 @@ class KeywordCollector:
         if not page_text:
             return None
 
-        keyword_terms = [term.lower() for term in re.split(r"\s+", keyword) if term.strip()]
-        lowered_page_text = page_text.lower()
-        if keyword_terms and not any(term in lowered_page_text for term in keyword_terms):
+        if not matches_requested_keyword(keyword, result.title, result.snippet, page_text):
             return None
 
         title = ""

@@ -7,6 +7,7 @@ import requests
 from app import app
 
 from crawler_utils import canonicalize_url, is_within_last_3_years, normalize_text, save_raw_item
+from crawlers.google_news_filters import should_keep_japanese_robotics_media_item
 
 
 GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
@@ -138,6 +139,8 @@ def fetch_google_news_items(
             "published_at": published_at,
             "raw_summary": raw_summary,
             "raw_text": "\n\n".join(raw_text_parts),
+            "publisher": publisher,
+            "google_news_query": query,
         })
 
     return items
@@ -145,6 +148,14 @@ def fetch_google_news_items(
 
 def should_keep_google_news_item(item: dict) -> bool:
     source_name = (item.get("source_name") or "").strip()
+    if source_name == "Google News / Japanese Robotics Media":
+        return should_keep_japanese_robotics_media_item(
+            query=item.get("google_news_query") or "",
+            publisher=item.get("publisher") or "",
+            title=item.get("title") or "",
+            summary=item.get("raw_summary") or "",
+        )
+
     if source_name != "Google News / Robot Makers":
         return True
 
@@ -198,7 +209,10 @@ def build_query_groups() -> list[tuple[str, list[str]]]:
             'site:monoist.itmedia.co.jp (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
             'site:itmedia.co.jp/aiplus (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
             'site:robotstart.info (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
-            'site:prtimes.jp (ロボット OR ロボティクス OR "フィジカルAI" OR ヒューマノイド)',
+            'site:prtimes.jp "ロボット"',
+            'site:prtimes.jp "ロボティクス"',
+            'site:prtimes.jp "フィジカルAI"',
+            'site:prtimes.jp "ヒューマノイド"',
             'site:article.auone.jp "フィジカルAI"',
         ]),
         ("Startup / Robotics Japan", [

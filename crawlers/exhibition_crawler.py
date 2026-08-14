@@ -6,7 +6,7 @@ import time
 from datetime import date
 from dataclasses import dataclass
 from typing import Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -94,6 +94,7 @@ DEFAULT_QUERIES = [
     "ROBOT TECHNOLOGY JAPAN 2026",
     "Japan Robot Week official robotics exhibition Japan",
     "AI博覧会 東京国際フォーラム",
+    'site:aismiley.co.jp/ai_hakurankai "AI博覧会"',
     "Vision AI Expo 幕張メッセ",
     "画像認識 AI Expo 幕張メッセ",
     "RoboNext 2026 日刊工業新聞 日本ロボット工業会",
@@ -269,6 +270,10 @@ TRUSTED_EVENT_DOMAINS = {
     "2026.ieee-humanoids.org",
     "www.roboticssummit.com",
 }
+
+AI_HAKURANKAI_DOMAIN = "aismiley.co.jp"
+AI_HAKURANKAI_PATH = "/ai_hakurankai/"
+AI_HAKURANKAI_EVENT_PATH_PATTERN = re.compile(r"^/ai_hakurankai/[a-z]+-20\d{2}/?$", re.IGNORECASE)
 
 TARGET_ORGANIZER_KEYWORDS = [
     "日本ロボット工業会",
@@ -571,6 +576,33 @@ class ExhibitionCrawler:
         text = text.replace("–", "-")
         text = text.replace("〜", "-").replace("～", "-").replace("~", "-")
 
+        # Some AI博覧会 titles use ``2026|9/30-10/1``. Parse the full
+        # cross-month range before the generic M/D-D pattern can mistake the
+        # end month (10) for an end day.
+        ai_hakurankai_slash_date = re.search(
+            r"(20\d{2})\s*[|｜]\s*(\d{1,2})/(\d{1,2})\s*-\s*(\d{1,2})/(\d{1,2})",
+            text,
+        )
+        if ai_hakurankai_slash_date:
+            year, start_month, start_day, end_month, end_day = ai_hakurankai_slash_date.groups()
+            return (
+                self.parse_date(f"{year}/{start_month}/{start_day}"),
+                self.parse_date(f"{year}/{end_month}/{end_day}"),
+            )
+
+        # AI博覧会 detail pages publish dates in compact dot notation such
+        # as ``2026.8.26-27`` and ``2026.9.30-10.1``.
+        ai_hakurankai_date = re.search(
+            r"(20\d{2})\.(\d{1,2})\.(\d{1,2})\s*-\s*(?:(\d{1,2})\.)?(\d{1,2})",
+            text,
+        )
+        if ai_hakurankai_date:
+            year, start_month, start_day, end_month, end_day = ai_hakurankai_date.groups()
+            return (
+                self.parse_date(f"{year}/{start_month}/{start_day}"),
+                self.parse_date(f"{year}/{end_month or start_month}/{end_day}"),
+            )
+
         compact_patterns = [
             r"(会期[:：]\s*20\d{2}年\d{1,2}月\d{1,2}日\s*(?:\([^)]*\))?\s*-\s*\d{1,2}日\s*(?:\([^)]*\))?)",
             r"(20\d{2}年(?:(?:\([^)]*\))|(?:（[^）]+）))?\d{1,2}月\d{1,2}日\s*(?:\([^)]*\))?\s*-\s*\d{1,2}月\d{1,2}日\s*(?:\([^)]*\))?)",
@@ -709,6 +741,22 @@ class ExhibitionCrawler:
         blob = " ".join(texts).lower()
         return any(keyword in blob for keyword in ROBOTICS_TOPIC_KEYWORDS)
 
+    def is_ai_hakurankai_event(self, url: str, *texts: str) -> bool:
+        """Recognize AI博覧会 as an explicitly configured official event.
+
+        AI博覧会 is broader than robotics, so it may not contain any of the
+        robotics topic keywords required for general exhibition search results.
+        """
+        parsed = urlparse(url or "")
+        domain = parsed.netloc.lower()
+        path = parsed.path.lower()
+        blob = " ".join(texts).lower()
+        return (
+            (domain == AI_HAKURANKAI_DOMAIN or domain.endswith(f".{AI_HAKURANKAI_DOMAIN}"))
+            and AI_HAKURANKAI_PATH in path
+            and "ai博覧会" in blob
+        )
+
     def normalize_event_title(self, title: str, summary: str, page_text: str) -> str:
         normalized_title = normalize_text(title, max_length=500)
         if normalized_title and normalized_title.lower() not in {"about", "top", "本展について"}:
@@ -727,12 +775,46 @@ class ExhibitionCrawler:
 
         return normalized_title or normalize_text(summary, max_length=120) or "展示会公式サイト"
 
+    def discover_ai_hakurankai_event_urls(self, root_url: str) -> list[str]:
+        """Find current and future AI博覧会 detail pages from its official hub.
+
+        The hub page is an index and does not itself contain a usable date
+        range.  Each seasonal/city detail page does, so it must be crawled as
+        an event URL rather than treated as the event record.
+        """
+        html = self.fetch_html(root_url)
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, "html.parser")
+        urls: list[str] = []
+        for anchor in soup.select("a[href]"):
+            candidate = urljoin(root_url, anchor.get("href", ""))
+            parsed = urlparse(candidate)
+            if not (parsed.netloc.lower() == AI_HAKURANKAI_DOMAIN or parsed.netloc.lower().endswith(f".{AI_HAKURANKAI_DOMAIN}")):
+                continue
+            if not AI_HAKURANKAI_EVENT_PATH_PATTERN.fullmatch(parsed.path):
+                continue
+            if candidate not in urls:
+                urls.append(candidate)
+        return urls
+
+    def expanded_seed_urls(self, urls: list[str]) -> list[str]:
+        expanded = list(urls)
+        for url in urls:
+            parsed = urlparse(url)
+            if parsed.netloc.lower() == AI_HAKURANKAI_DOMAIN and parsed.path.rstrip("/") == AI_HAKURANKAI_PATH.rstrip("/"):
+                for event_url in self.discover_ai_hakurankai_event_urls(url):
+                    if event_url not in expanded:
+                        expanded.append(event_url)
+        return expanded
+
     def crawl_seed_urls(self, urls: list[str]) -> tuple[int, int]:
         inserted = 0
         skipped = 0
 
         with app.app_context():
-            for url in urls:
+            for url in self.expanded_seed_urls(urls):
                 result = SearchResult(
                     query="official_japan_seed",
                     title="",
@@ -769,6 +851,9 @@ class ExhibitionCrawler:
         domain = urlparse(result.url).netloc.lower()
 
         is_corporate_event = self.is_corporate_event_domain(domain)
+        is_ai_hakurankai = self.is_ai_hakurankai_event(
+            result.url, result.query, result.title, result.snippet, title, summary, page_text[:5000],
+        )
         if not self.is_event_domain_candidate(domain) and not is_corporate_event:
             return None
 
@@ -779,7 +864,7 @@ class ExhibitionCrawler:
         ):
             return None
 
-        if not self.is_robotics_related_event(
+        if not is_ai_hakurankai and not self.is_robotics_related_event(
             result.query,
             result.title,
             result.snippet,
