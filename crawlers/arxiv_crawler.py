@@ -30,6 +30,7 @@ def fetch_arxiv_items(
     }
 
     last_exc = None
+    response = None
     for attempt, delay_seconds in enumerate([0] + REQUEST_RETRY_DELAYS, start=1):
         if delay_seconds:
             time.sleep(delay_seconds)

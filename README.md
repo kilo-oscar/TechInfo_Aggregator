@@ -449,7 +449,7 @@ http://127.0.0.1:5000/today-news.pdf?date=2026-08-06
 
 - `Physical AI`
 - `Robot Makers`
-- `Real Haptics`
+- `要素技術`（センサ・センシング［視覚センサ・カメラ、聴覚センサ、力触覚センサ］、アクチュエータ、ギヤ・減速機、ダイレクトドライブモータ）
 - `Startup`
 - `Google News`
 - `その他`

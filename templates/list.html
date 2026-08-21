@@ -320,6 +320,11 @@
     .paper-source-link.active { background: #dbeafe !important; }
     .paper-subcategories { margin: 4px 0 8px 14px; padding-left: 8px; border-left: 3px solid #bfdbfe; }
     .paper-subcategories .event-nav-link { font-size: 12px; padding: 8px 9px; }
+    .news-category-group { margin-top: 4px; }
+    .news-subcategories { margin: 3px 0 7px 14px; padding-left: 8px; border-left: 3px solid #bfdbfe; }
+    .news-subcategories .event-nav-link { font-size: 12px; padding: 7px 9px; }
+    .sensor-sensing-subcategories { margin: 2px 0 5px 12px; padding-left: 7px; border-left: 2px solid #dbeafe; }
+    .sensor-sensing-subcategories .event-nav-link { font-size: 11px; padding: 6px 8px; }
     .paper-empty-note { display: block; padding: 7px 10px; color: #94a3b8; font-size: 12px; }
 
     .layout {
@@ -914,7 +919,27 @@
               <div class="event-nav-title">ニュースカテゴリを選択</div>
               <div class="event-nav-list">
                 {% for tab in news_category_shortcuts %}
-                  <a class="event-nav-link {% if tab.active %}active{% endif %}" href="{{ tab.href }}">{{ tab.label }}</a>
+                  <div class="news-category-group">
+                    <a class="event-nav-link {% if tab.active %}active{% endif %}" href="{{ tab.href }}">{{ tab.label }}</a>
+                    {% if tab.children %}
+                    <div class="news-subcategories">
+                      {% for child in tab.children %}
+                      <a class="event-nav-link {% if child.active %}active{% endif %}" href="{{ child.href }}">
+                        <span>{{ child.label }}</span><small>{{ child.count }}件</small>
+                      </a>
+                      {% if child.children %}
+                      <div class="sensor-sensing-subcategories">
+                        {% for sensor in child.children %}
+                        <a class="event-nav-link {% if sensor.active %}active{% endif %}" href="{{ sensor.href }}">
+                          <span>{{ sensor.label }}</span><small>{{ sensor.count }}件</small>
+                        </a>
+                        {% endfor %}
+                      </div>
+                      {% endif %}
+                      {% endfor %}
+                    </div>
+                    {% endif %}
+                  </div>
                 {% endfor %}
               </div>
             </div>
@@ -934,6 +959,25 @@
                 <a class="event-nav-link {% if all_papers.active %}active{% endif %}" href="{{ all_papers.href }}">
                   <span>{{ all_papers.label }}</span><small>{{ all_papers.count }}件</small>
                 </a>
+                <div class="paper-source-group">
+                  <span class="paper-source-link">要素技術テーマ</span>
+                  <div class="paper-subcategories">
+                    {% for tab in paper_element_menu %}
+                    <a class="event-nav-link {% if tab.active %}active{% endif %}" href="{{ tab.href }}">
+                      <span>{{ tab.label }}</span><small>{{ tab.count }}件</small>
+                    </a>
+                    {% if tab.children %}
+                    <div class="sensor-sensing-subcategories">
+                      {% for sensor in tab.children %}
+                      <a class="event-nav-link {% if sensor.active %}active{% endif %}" href="{{ sensor.href }}">
+                        <span>{{ sensor.label }}</span><small>{{ sensor.count }}件</small>
+                      </a>
+                      {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                  </div>
+                </div>
                 {% for group in paper_source_groups %}
                 <div class="paper-source-group">
                   <a class="event-nav-link paper-source-link {% if group.active %}active{% endif %}" href="{{ group.href }}">
@@ -1124,9 +1168,49 @@
               {% endfor %}
             </select>
           </div>
+          <div class="field" id="element-technology-category-field" {% if current_news_category != "要素技術" %}hidden{% endif %}>
+            <label for="element_technology_category">要素技術の詳細分類</label>
+            <select name="element_technology_category" id="element_technology_category">
+              <option value="">すべて</option>
+              {% for category in available_element_technology_subcategories %}
+                <option value="{{ category }}" {% if current_element_technology_category == category %}selected{% endif %}>
+                  {{ category }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field" id="sensor-sensing-category-field" {% if current_element_technology_category != "センサ・センシング" %}hidden{% endif %}>
+            <label for="sensor_sensing_category">センサ・センシングの詳細分類</label>
+            <select name="sensor_sensing_category" id="sensor_sensing_category">
+              <option value="">すべて</option>
+              {% for category in available_sensor_sensing_subcategories %}
+                <option value="{{ category }}" {% if current_sensor_sensing_category == category %}selected{% endif %}>
+                  {{ category }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
           {% endif %}
 
           {% if current_source_type == "paper" %}
+          <div class="field">
+            <label for="paper_element_category">要素技術テーマ</label>
+            <select name="paper_element_category" id="paper_element_category">
+              <option value="">すべて</option>
+              {% for category in available_element_technology_subcategories %}
+              <option value="{{ category }}" {% if current_paper_element_category == category %}selected{% endif %}>{{ category }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field" id="paper-sensor-category-field" {% if current_paper_element_category != "センサ・センシング" %}hidden{% endif %}>
+            <label for="paper_sensor_category">センサ・センシングの詳細分類</label>
+            <select name="paper_sensor_category" id="paper_sensor_category">
+              <option value="">すべて</option>
+              {% for category in available_sensor_sensing_subcategories %}
+              <option value="{{ category }}" {% if current_paper_sensor_category == category %}selected{% endif %}>{{ category }}</option>
+              {% endfor %}
+            </select>
+          </div>
           <div class="field">
             <label for="paper_source">論文の中カテゴリ</label>
             <select name="paper_source" id="paper_source">
@@ -1352,6 +1436,18 @@
                   {% if item.source_type == "news" and item.news_category %}
                   <span class="meta-text">{{ item.news_category }}</span>
                   {% endif %}
+                  {% if item.source_type == "news" and item.element_technology_category %}
+                  <span class="meta-text">{{ item.element_technology_category }}</span>
+                  {% endif %}
+                  {% if item.source_type == "news" and item.sensor_sensing_category %}
+                  <span class="meta-text">{{ item.sensor_sensing_category }}</span>
+                  {% endif %}
+                  {% if item.source_type == "paper" and item.paper_element_category %}
+                  <span class="meta-text">{{ item.paper_element_category }}</span>
+                  {% endif %}
+                  {% if item.source_type == "paper" and item.paper_sensor_category %}
+                  <span class="meta-text">{{ item.paper_sensor_category }}</span>
+                  {% endif %}
                   <span class="meta-text">{{ item.source_name }}</span>
                   <span class="meta-text">{{ item.published_at }}</span>
                   {% if item.event_period %}
@@ -1483,6 +1579,44 @@
             }
           }
         });
+      }
+
+      const newsCategorySelect = document.getElementById('news_category');
+      const elementTechnologyCategoryField = document.getElementById('element-technology-category-field');
+      const elementTechnologyCategorySelect = document.getElementById('element_technology_category');
+      const sensorSensingCategoryField = document.getElementById('sensor-sensing-category-field');
+      const sensorSensingCategorySelect = document.getElementById('sensor_sensing_category');
+      if (newsCategorySelect && elementTechnologyCategoryField) {
+        const updateElementTechnologyCategoryVisibility = () => {
+          const isElementTechnology = newsCategorySelect.value === '要素技術';
+          elementTechnologyCategoryField.hidden = !isElementTechnology;
+          if (!isElementTechnology && elementTechnologyCategorySelect) {
+            elementTechnologyCategorySelect.value = '';
+          }
+          if (!isElementTechnology && sensorSensingCategorySelect) {
+            sensorSensingCategorySelect.value = '';
+          }
+          if (sensorSensingCategoryField) {
+            sensorSensingCategoryField.hidden = !isElementTechnology
+              || elementTechnologyCategorySelect?.value !== 'センサ・センシング';
+          }
+        };
+        newsCategorySelect.addEventListener('change', updateElementTechnologyCategoryVisibility);
+        elementTechnologyCategorySelect?.addEventListener('change', updateElementTechnologyCategoryVisibility);
+        updateElementTechnologyCategoryVisibility();
+      }
+
+      const paperElementCategorySelect = document.getElementById('paper_element_category');
+      const paperSensorCategoryField = document.getElementById('paper-sensor-category-field');
+      const paperSensorCategorySelect = document.getElementById('paper_sensor_category');
+      if (paperElementCategorySelect && paperSensorCategoryField) {
+        const updatePaperSensorCategoryVisibility = () => {
+          const visible = paperElementCategorySelect.value === 'センサ・センシング';
+          paperSensorCategoryField.hidden = !visible;
+          if (!visible && paperSensorCategorySelect) paperSensorCategorySelect.value = '';
+        };
+        paperElementCategorySelect.addEventListener('change', updatePaperSensorCategoryVisibility);
+        updatePaperSensorCategoryVisibility();
       }
 
       const pdfActionsTrigger = document.querySelector('.pdf-actions-trigger');

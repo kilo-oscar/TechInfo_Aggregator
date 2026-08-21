@@ -8,6 +8,7 @@ import re
 from math import ceil
 from datetime import datetime, timedelta, timezone
 from collections import Counter
+from functools import lru_cache
 
 from models import db, RawItem
 from typing import Optional
@@ -32,6 +33,12 @@ MODEL_TITLE_CONTEXT_KEYWORDS = (
     "model", "モデル", "robot", "ロボット", "vision", "action", "tactile",
     "ai", "自動運転", "physical", "フィジカル",
 )
+ELEMENT_TECHNOLOGY_SUBCATEGORIES = [
+    "センサ・センシング", "アクチュエータ", "ギヤ・減速機", "ダイレクトドライブモータ", "その他",
+]
+SENSOR_SENSING_SUBCATEGORIES = [
+    "視覚センサ・カメラ", "聴覚センサ", "力触覚センサ", "その他",
+]
 
 load_project_env()
 
@@ -132,7 +139,10 @@ def build_keyword_match_filter(keyword: str):
     return or_(
         RawItem.title.ilike(pattern),
         RawItem.raw_summary.ilike(pattern),
-        RawItem.raw_text.ilike(pattern),
+        # arXiv stores author names and category metadata in raw_text.  Those
+        # metadata fields must not make a paper match a user keyword; title
+        # and abstract remain searchable for papers.
+        and_(RawItem.source_type != "paper", RawItem.raw_text.ilike(pattern)),
         RawItem.source_name.ilike(pattern),
     )
     return normalized
@@ -434,11 +444,122 @@ def extract_news_category(item: RawItem) -> str:
         return "Physical-AI"
     if source_name.startswith("Google News / Robot Makers"):
         return "Robot Makers"
-    if source_name.startswith("Google News / Real Haptics"):
-        return "Real-Haptics"
+    if source_name.startswith(("Google News / Real Haptics", "Google News / Haptics Robotics")):
+        return "要素技術"
+    if source_name.startswith("Google News / Robotics Sensing"):
+        return "要素技術"
+    if source_name.startswith("Google News / Robotics Components"):
+        return "要素技術"
     if source_name.startswith("Startup /"):
         return "Startup"
     return "その他"
+
+
+def extract_element_technology_category(item: RawItem) -> str:
+    """Classify articles within the news category 「要素技術」."""
+    if extract_news_category(item) != "要素技術":
+        return ""
+
+    blob = " ".join([
+        item.title or "", item.raw_summary or "", item.raw_text or "",
+    ]).lower()
+    source_name = (item.source_name or "").lower()
+    if source_name.startswith((
+        "google news / robotics sensing",
+        "google news / real haptics",
+        "google news / haptics robotics",
+    )):
+        return "センサ・センシング"
+    if any(keyword in blob for keyword in (
+        "ダイレクトドライブ", "ddモータ", "ddモーター", "direct drive motor", "torque motor",
+    )):
+        return "ダイレクトドライブモータ"
+    if any(keyword in blob for keyword in (
+        "減速機", "精密減速機", "ハーモニックドライブ", "harmonic drive", "robot gear", "robot gearbox", "robot reducer",
+    )):
+        return "ギヤ・減速機"
+    if any(keyword in blob for keyword in ("アクチュエータ", "actuator")):
+        return "アクチュエータ"
+    if any(keyword in blob for keyword in ("センサ", "センサー", "sensor")):
+        return "センサ・センシング"
+    return "その他"
+
+
+def extract_sensor_sensing_category(item: RawItem) -> str:
+    """Classify sensor and sensing articles into their sensing modality."""
+    if extract_element_technology_category(item) != "センサ・センシング":
+        return ""
+
+    blob = " ".join([
+        item.title or "", item.raw_summary or "", item.raw_text or "",
+    ]).lower()
+    if any(keyword in blob for keyword in (
+        "力触覚", "力覚", "触覚", "force-torque", "force tactile", "tactile sensor", "tactile sensing", "haptic",
+    )):
+        return "力触覚センサ"
+    if any(keyword in blob for keyword in (
+        "聴覚", "音響", "音源定位", "robot hearing", "auditory", "audio perception", "sound source",
+    )):
+        return "聴覚センサ"
+    if any(keyword in blob for keyword in (
+        "視覚", "画像", "カメラ", "マシンビジョン", "ロボットビジョン", "machine vision", "visual sensing", "robot vision", "camera",
+    )):
+        return "視覚センサ・カメラ"
+    return "その他"
+
+
+@lru_cache(maxsize=10000)
+def classify_paper_element_categories(title: str, summary: str) -> tuple[str, str]:
+    """Return the two-level hardware category for one paper.
+
+    The result is cached by title and abstract, which are immutable source
+    metadata in normal operation.  This keeps the tile menu from re-running
+    the same regular-expression classification thousands of times per page.
+    """
+    blob = " ".join([title or "", summary or ""])
+    if re.search(r"\bdirect[- ]drive\b|\btorque motors?\b|ダイレクトドライブ", blob, re.IGNORECASE):
+        return "ダイレクトドライブモータ", ""
+    if re.search(r"\bharmonic drive\b|\breducers?\b|\bgearboxes?\b|\brobot gears?\b|減速機|ギヤ", blob, re.IGNORECASE):
+        return "ギヤ・減速機", ""
+    if re.search(r"\bactuators?\b|アクチュエータ", blob, re.IGNORECASE):
+        return "アクチュエータ", ""
+    if not re.search(
+        r"\bsensors?\b|\bsensing\b|\bproprioceptive sensors?\b|\blidar\b|\bradar\b|"
+        r"\bcameras?\b|\bevent camera\b|\bvisual sensors?\b|\bmicrophones?\b|"
+        r"\baudio sensors?\b|\bauditory sensors?\b|\bacoustic sensors?\b|\brobot hearing\b|"
+        r"\btactile\b|\bhaptic\b|\bforce[- ]torque\b|\bforce sensing\b|"
+        r"センサ|センシング|視覚センサ|聴覚|触覚|力触覚",
+        blob,
+        re.IGNORECASE,
+    ):
+        if re.search(
+            r"\bend[- ]effector\b|\bgrippers?\b|\btransmission\b|\bcable[- ]driven\b|"
+            r"\bcompliant mechanism\b|\brobotic linkage\b|エンドエフェクタ|グリッパ|伝達機構",
+            blob,
+            re.IGNORECASE,
+        ):
+            return "その他", ""
+        return "", ""
+    if re.search(r"\btactile\b|\bhaptic\b|\bforce[- ]torque\b|\bforce sensing\b|触覚|力触覚|力覚", blob, re.IGNORECASE):
+        return "センサ・センシング", "力触覚センサ"
+    if re.search(r"\bauditory\b|\bacoustic\b|\brobot hearing\b|\baudio sensors?\b|\bmicrophones?\b|\bsound source\b|聴覚|音響|音源定位", blob, re.IGNORECASE):
+        return "センサ・センシング", "聴覚センサ"
+    if re.search(r"\bcameras?\b|\bevent camera\b|\bvisual sensors?\b|\bimaging sensor\b|視覚センサ|カメラ", blob, re.IGNORECASE):
+        return "センサ・センシング", "視覚センサ・カメラ"
+    return "センサ・センシング", "その他"
+
+
+def extract_paper_element_category(item: RawItem) -> str:
+    """Classify only papers whose title/abstract concerns a hardware element."""
+    if item.source_type != "paper":
+        return ""
+    return classify_paper_element_categories(item.title or "", item.raw_summary or "")[0]
+
+
+def extract_paper_sensor_category(item: RawItem) -> str:
+    if item.source_type != "paper":
+        return ""
+    return classify_paper_element_categories(item.title or "", item.raw_summary or "")[1]
 
 
 def extract_news_region(item: RawItem) -> str:
@@ -492,7 +613,7 @@ def build_news_category_groups(items: list[RawItem]) -> list[dict]:
     category_order = {
         "Physical-AI": 0,
         "Robot Makers": 1,
-        "Real-Haptics": 2,
+        "要素技術": 2,
         "Startup": 3,
         "その他": 9,
     }
@@ -537,7 +658,14 @@ def build_news_category_shortcuts(selected_region: str, selected_category: str, 
     return shortcuts
 
 
-def build_news_category_menu(selected_category: str, args, base_path: str) -> list[dict]:
+def build_news_category_menu(
+    selected_category: str,
+    selected_element_category: str,
+    selected_sensor_sensing_category: str,
+    args,
+    base_path: str,
+    base_query,
+) -> list[dict]:
     base_params = []
     for key in ["q", "source_name", "sort", "order", "news_region", "crawl_date"]:
         value = (args.get(key) or "").strip()
@@ -545,15 +673,62 @@ def build_news_category_menu(selected_category: str, args, base_path: str) -> li
             base_params.append((key, value))
 
     menu_items = []
-    for category in ["", "Physical-AI", "Robot Makers", "Real-Haptics", "Startup", "その他"]:
+    for category in ["", "Physical-AI", "Robot Makers", "要素技術", "Startup", "その他"]:
         params = base_params + [("source_type", "news")]
         if category:
             params.append(("news_category", category))
-        menu_items.append({
+        menu_item = {
             "label": category or "すべてのニュース",
             "active": selected_category == category,
             "href": base_path + "?" + urlencode(params),
-        })
+            "children": [],
+        }
+        if category == "要素技術":
+            element_items = [
+                item for item in base_query.filter(
+                    RawItem.source_type == "news",
+                    or_(
+                        RawItem.source_name.ilike("Google News / Robotics Sensing%"),
+                        RawItem.source_name.ilike("Google News / Robotics Components%"),
+                        RawItem.source_name.ilike("Google News / Real Haptics%"),
+                        RawItem.source_name.ilike("Google News / Haptics Robotics%"),
+                    ),
+                ).all()
+                if extract_news_category(item) == "要素技術"
+            ]
+            for element_category in ELEMENT_TECHNOLOGY_SUBCATEGORIES:
+                child_params = params + [("element_technology_category", element_category)]
+                child_item = {
+                    "label": element_category,
+                    "count": sum(
+                        extract_element_technology_category(item) == element_category
+                        for item in element_items
+                    ),
+                    "active": (
+                        selected_category == "要素技術"
+                        and selected_element_category == element_category
+                    ),
+                    "href": base_path + "?" + urlencode(child_params),
+                    "children": [],
+                }
+                if element_category == "センサ・センシング":
+                    for sensor_category in SENSOR_SENSING_SUBCATEGORIES:
+                        sensor_params = child_params + [("sensor_sensing_category", sensor_category)]
+                        child_item["children"].append({
+                            "label": sensor_category,
+                            "count": sum(
+                                extract_sensor_sensing_category(item) == sensor_category
+                                for item in element_items
+                            ),
+                            "active": (
+                                selected_category == "要素技術"
+                                and selected_element_category == "センサ・センシング"
+                                and selected_sensor_sensing_category == sensor_category
+                            ),
+                            "href": base_path + "?" + urlencode(sensor_params),
+                        })
+                menu_item["children"].append(child_item)
+        menu_items.append(menu_item)
     return menu_items
 
 
@@ -593,6 +768,45 @@ def build_paper_category_catalog(paper_query) -> tuple[tuple[str, int], ...]:
     # are more useful as subcategories in the menu.
     category_counts.pop("cs.RO", None)
     return tuple(category_counts.most_common(10))
+
+
+def build_paper_element_menu(selected_element: str, selected_sensor: str, args, base_path: str, base_query) -> list[dict]:
+    base_params = []
+    for key in ["q", "source_name", "sort", "order", "crawl_date", "paper_source", "paper_category"]:
+        value = (args.get(key) or "").strip()
+        if value:
+            base_params.append((key, value))
+    items = base_query.filter(RawItem.source_type == "paper").all()
+    classifications = [
+        classify_paper_element_categories(item.title or "", item.raw_summary or "")
+        for item in items
+    ]
+    element_counts = Counter(element for element, _sensor in classifications if element)
+    sensor_counts = Counter(
+        sensor for element, sensor in classifications
+        if element == "センサ・センシング" and sensor
+    )
+    menu = []
+    for category in ELEMENT_TECHNOLOGY_SUBCATEGORIES:
+        params = base_params + [("source_type", "paper"), ("paper_element_category", category)]
+        entry = {
+            "label": category,
+            "count": element_counts[category],
+            "active": selected_element == category,
+            "href": base_path + "?" + urlencode(params),
+            "children": [],
+        }
+        if category == "センサ・センシング":
+            for sensor in SENSOR_SENSING_SUBCATEGORIES:
+                sensor_params = params + [("paper_sensor_category", sensor)]
+                entry["children"].append({
+                    "label": sensor,
+                    "count": sensor_counts[sensor],
+                    "active": selected_element == category and selected_sensor == sensor,
+                    "href": base_path + "?" + urlencode(sensor_params),
+                })
+        menu.append(entry)
+    return menu
 
 
 def build_paper_category_menu(selected_source: str, selected_category: str, args, base_path: str, base_query) -> tuple[list[dict], list[dict]]:
@@ -1056,10 +1270,28 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
     event_country = request.args.get("event_country", "").strip()
     news_region = request.args.get("news_region", "").strip()
     news_category = request.args.get("news_category", "").strip()
+    requested_element_technology_category = request.args.get("element_technology_category", "").strip()
+    element_technology_category = (
+        requested_element_technology_category
+        if requested_element_technology_category in ELEMENT_TECHNOLOGY_SUBCATEGORIES
+        else ""
+    )
+    requested_sensor_sensing_category = request.args.get("sensor_sensing_category", "").strip()
+    sensor_sensing_category = (
+        requested_sensor_sensing_category
+        if requested_sensor_sensing_category in SENSOR_SENSING_SUBCATEGORIES
+        else ""
+    )
     requested_paper_category = request.args.get("paper_category", "").strip()
     paper_category = requested_paper_category if re.fullmatch(r"[a-z][a-z0-9-]*\.[A-Za-z0-9-]+", requested_paper_category) else ""
     requested_paper_source = request.args.get("paper_source", "").strip().lower()
     paper_source = requested_paper_source if requested_paper_source in {"arxiv", "ieee", "journals"} else ""
+    paper_element_category = request.args.get("paper_element_category", "").strip()
+    if paper_element_category not in ELEMENT_TECHNOLOGY_SUBCATEGORIES:
+        paper_element_category = ""
+    paper_sensor_category = request.args.get("paper_sensor_category", "").strip()
+    if paper_sensor_category not in SENSOR_SENSING_SUBCATEGORIES:
+        paper_sensor_category = ""
     sort = request.args.get("sort", "published_at").strip()
     order = request.args.get("order", "desc").strip()
     crawl_date = normalize_crawl_date(request.args.get("crawl_date", ""))
@@ -1096,10 +1328,20 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
     event_country_shortcuts = build_event_country_shortcuts(event_country, event_preview_groups, request.args, base_path)
 
     news_category_groups: list[dict] = []
-    news_category_shortcuts = build_news_category_menu(news_category, request.args, base_path)
     summary_query = query
+    news_category_shortcuts = build_news_category_menu(
+        news_category,
+        element_technology_category,
+        sensor_sensing_category,
+        request.args,
+        base_path,
+        summary_query,
+    )
     paper_category_shortcuts, paper_source_groups = build_paper_category_menu(
         paper_source, paper_category, request.args, base_path, summary_query
+    )
+    paper_element_menu = build_paper_element_menu(
+        paper_element_category, paper_sensor_category, request.args, base_path, summary_query
     )
     thinktank_shortcuts = build_thinktank_menu(
         source_name, request.args, base_path, thinktank_menu_query
@@ -1205,13 +1447,24 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         offset = (page - 1) * per_page
         trend_result_groups = all_trend_groups[offset:offset + per_page]
         items = [group["item"] for group in trend_result_groups if group["item"] is not None]
-    elif source_type == "news" and (news_region or news_category):
+    elif source_type == "news" and (news_region or news_category or element_technology_category or sensor_sensing_category):
         candidate_items = query.all()
         candidate_items = [
             item for item in candidate_items
             if (not news_region or extract_news_region(item) == news_region)
             and (not news_category or extract_news_category(item) == news_category)
+            and (not element_technology_category or extract_element_technology_category(item) == element_technology_category)
+            and (not sensor_sensing_category or extract_sensor_sensing_category(item) == sensor_sensing_category)
         ]
+        pagination_total = len(candidate_items)
+        offset = (page - 1) * per_page
+        items = candidate_items[offset:offset + per_page]
+    elif source_type == "paper" and (paper_element_category or paper_sensor_category):
+        candidate_items = [item for item in query.all() if (
+            not paper_element_category or extract_paper_element_category(item) == paper_element_category
+        ) and (
+            not paper_sensor_category or extract_paper_sensor_category(item) == paper_sensor_category
+        )]
         pagination_total = len(candidate_items)
         offset = (page - 1) * per_page
         items = candidate_items[offset:offset + per_page]
@@ -1224,6 +1477,11 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         if item.source_type == "news":
             item.news_region = extract_news_region(item)
             item.news_category = extract_news_category(item)
+            item.element_technology_category = extract_element_technology_category(item)
+            item.sensor_sensing_category = extract_sensor_sensing_category(item)
+        elif item.source_type == "paper":
+            item.paper_element_category = extract_paper_element_category(item)
+            item.paper_sensor_category = extract_paper_sensor_category(item)
         item.has_translation = bool(item.translated_title or item.translated_summary)
         item.display_title = item.translated_title or item.title
         item.display_summary = clean_summary(item.translated_summary or item.raw_summary)
@@ -1343,7 +1601,7 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
                 for key, value in request.args.to_dict(flat=True).items()
                 if key in {
                     "q", "source_name", "source_type", "crawl_date",
-                    "news_region", "news_category", "paper_source", "paper_category",
+                    "news_region", "news_category", "element_technology_category", "sensor_sensing_category", "paper_source", "paper_category",
                 } and value
             }
             if archive_month:
@@ -1388,8 +1646,12 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         current_event_country=event_country,
         current_news_region=news_region,
         current_news_category=news_category,
+        current_element_technology_category=element_technology_category,
+        current_sensor_sensing_category=sensor_sensing_category,
         current_paper_category=paper_category,
         current_paper_source=paper_source,
+        current_paper_element_category=paper_element_category,
+        current_paper_sensor_category=paper_sensor_category,
         current_sort=sort,
         current_order=order,
         current_crawl_date=crawl_date,
@@ -1427,9 +1689,12 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         news_category_shortcuts=news_category_shortcuts,
         paper_category_shortcuts=paper_category_shortcuts,
         paper_source_groups=paper_source_groups,
+        paper_element_menu=paper_element_menu,
         thinktank_shortcuts=thinktank_shortcuts,
         available_news_regions=["日本国内の記事", "海外の記事"],
-        available_news_categories=["Physical-AI", "Robot Makers", "Real-Haptics", "Startup", "その他"],
+        available_news_categories=["Physical-AI", "Robot Makers", "要素技術", "Startup", "その他"],
+        available_element_technology_subcategories=ELEMENT_TECHNOLOGY_SUBCATEGORIES,
+        available_sensor_sensing_subcategories=SENSOR_SENSING_SUBCATEGORIES,
         collection_keyword=collection_keyword,
         collection_inserted=collection_inserted,
         collection_skipped=collection_skipped,
@@ -1601,12 +1866,7 @@ def filtered_search_results_pdf():
     query = RawItem.query.filter(RawItem.source_type == source_type)
     keyword = request.args.get("q", "").strip()[:200]
     if keyword and source_type != "event":
-        query = query.filter(or_(
-            RawItem.title.ilike(f"%{keyword}%"),
-            RawItem.raw_summary.ilike(f"%{keyword}%"),
-            RawItem.raw_text.ilike(f"%{keyword}%"),
-            RawItem.source_name.ilike(f"%{keyword}%"),
-        ))
+        query = query.filter(build_keyword_match_filter(keyword))
     source_name = request.args.get("source_name", "").strip()[:200]
     if source_name and source_type != "event":
         query = query.filter(RawItem.source_name == source_name)
@@ -1623,10 +1883,20 @@ def filtered_search_results_pdf():
     if source_type == "news":
         news_region = request.args.get("news_region", "").strip()
         news_category = request.args.get("news_category", "").strip()
+        element_technology_category = request.args.get("element_technology_category", "").strip()
+        sensor_sensing_category = request.args.get("sensor_sensing_category", "").strip()
         items = [
             item for item in items
             if (not news_region or extract_news_region(item) == news_region)
             and (not news_category or extract_news_category(item) == news_category)
+            and (
+                not element_technology_category
+                or extract_element_technology_category(item) == element_technology_category
+            )
+            and (
+                not sensor_sensing_category
+                or extract_sensor_sensing_category(item) == sensor_sensing_category
+            )
         ]
     elif source_type == "paper":
         paper_source = request.args.get("paper_source", "").strip().lower()

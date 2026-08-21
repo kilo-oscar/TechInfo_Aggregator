@@ -34,6 +34,7 @@ class KeywordCollectionTests(unittest.TestCase):
         self.assertNotIn("raw_items.raw_summary", vtla_filter)
         self.assertIn("raw_items.title", vtla_filter)
         self.assertIn("raw_items.raw_text", normal_filter)
+        self.assertIn("raw_items.source_type !=", normal_filter)
 
     def test_google_news_fetches_new_matching_candidates(self):
         collector = KeywordCollector()
