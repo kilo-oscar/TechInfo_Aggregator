@@ -3,3 +3,22 @@ daily pdf gmail sent: date=2026-08-10, items=417, pdf_bytes=705498, recipients=1
 daily pdf gmail sent: date=2026-08-11, items=428, pdf_bytes=716006, recipients=1
 daily pdf gmail sent: date=2026-08-12, items=1839, pdf_bytes=2604597, recipients=1
 daily pdf gmail sent: date=2026-08-13, items=603, pdf_bytes=1017319, recipients=1
+Traceback (most recent call last):
+  File "/home/kenji/ドキュメント/TechInfo_Aggregator/send_daily_pdf_gmail.py", line 140, in <module>
+    main()
+  File "/home/kenji/ドキュメント/TechInfo_Aggregator/send_daily_pdf_gmail.py", line 135, in main
+    if not send_daily_pdf(report_date, dry_run=args.dry_run, force=args.force):
+  File "/home/kenji/ドキュメント/TechInfo_Aggregator/send_daily_pdf_gmail.py", line 95, in send_daily_pdf
+    pdf_data, item_count = build_daily_information_pdf(report_date)
+  File "/home/kenji/ドキュメント/TechInfo_Aggregator/app.py", line 1457, in build_daily_information_pdf
+    pdf_data = render_daily_news_pdf(report_date, build_pdf_category_groups(items))
+  File "/home/kenji/ドキュメント/TechInfo_Aggregator/app.py", line 1416, in build_pdf_category_groups
+    "event_country": item.event_country or extract_event_country(item),
+AttributeError: 'RawItem' object has no attribute 'event_country'
+daily pdf gmail sent: date=2026-08-15, items=226, pdf_bytes=453726, recipients=1
+daily pdf gmail sent: date=2026-08-16, items=133, pdf_bytes=331474, recipients=1
+daily pdf gmail sent: date=2026-08-17, items=457, pdf_bytes=835492, recipients=1
+daily pdf gmail sent: date=2026-08-18, items=659, pdf_bytes=1094512, recipients=1
+daily pdf gmail sent: date=2026-08-19, items=726, pdf_bytes=1192400, recipients=1
+daily pdf gmail sent: date=2026-08-20, items=740, pdf_bytes=1176730, recipients=1
+daily pdf gmail sent: date=2026-08-21, items=587, pdf_bytes=985928, recipients=1

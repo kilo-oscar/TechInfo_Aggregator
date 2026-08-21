@@ -184,6 +184,8 @@ def build_query_groups() -> list[tuple[str, list[str]]]:
             '"Embodied AI" robot',
             '"Embodied Intelligence" robot',
             '("vision language action" OR "vision-language-action" OR VLA) robot',
+            '("VLA model" OR "VLAモデル") robot',
+            '("VTLA model" OR "VTLAモデル") robot',
             '"robot manipulation" AI',
             '("robot foundation model" OR "foundation model") robotics',
             'humanoid robotics AI',

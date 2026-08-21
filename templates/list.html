@@ -104,6 +104,10 @@
     .daily-news-menu-title { margin: 0 0 8px; color: #475569; font-size: 13px; font-weight: bold; }
     .daily-news-menu a { display: block; margin-bottom: 5px; border: 0; border-radius: 8px; background: #f8fafc; }
     .daily-news-menu a.active { background: #dbeafe; color: #1d4ed8; }
+    .news-export-month-selector { margin: 0 0 10px; }
+    .news-export-month-selector label { display: block; margin-bottom: 5px; color: #475569; font-size: 13px; font-weight: bold; }
+    .news-export-month-selector select { width: 100%; padding: 8px; border: 1px solid #94a3b8; border-radius: 8px; background: #fff; color: #1e293b; font-size: 14px; }
+    .daily-news-menu a[aria-disabled="true"] { color: #94a3b8; cursor: not-allowed; pointer-events: none; }
     .daily-custom-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
     .daily-custom-form label { display: block; margin-bottom: 6px; color: #475569; font-size: 13px; font-weight: bold; }
     .daily-custom-row { display: flex; gap: 7px; }
@@ -840,9 +844,24 @@
             <span class="daily-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>
           </button>
           <div class="daily-news-menu" id="daily-news-menu" hidden>
-            <div class="daily-news-menu-title">検索結果PDFの操作を選択</div>
-            <a href="{{ search_results_pdf_open_href }}" target="_blank" rel="noopener">PDFを開く</a>
-            <a href="{{ search_results_pdf_download_href }}">PDFをダウンロード</a>
+            {% if is_news_month_export_view %}
+              <div class="daily-news-menu-title">対象年月を指定してPDFを作成</div>
+              <div class="news-export-month-selector">
+                <label for="news-export-month">対象年月</label>
+                <select id="news-export-month">
+                  <option value="">年月を選択してください</option>
+                  {% for month in news_export_months %}
+                    <option value="{{ month.month }}" data-open-href="{{ month.open_href }}" data-download-href="{{ month.download_href }}" {% if month.month == selected_news_export_month %}selected{% endif %}>{{ month.label }}（{{ month.count }}件）</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <a id="news-export-open" {% if selected_news_export_month %}href="{{ (news_export_months | selectattr('month', 'equalto', selected_news_export_month) | first).open_href }}"{% endif %} target="_blank" rel="noopener" {% if not selected_news_export_month %}aria-disabled="true"{% endif %}>PDFを開く</a>
+              <a id="news-export-download" {% if selected_news_export_month %}href="{{ (news_export_months | selectattr('month', 'equalto', selected_news_export_month) | first).download_href }}"{% endif %} {% if not selected_news_export_month %}aria-disabled="true"{% endif %}>PDFをダウンロード</a>
+            {% else %}
+              <div class="daily-news-menu-title">検索結果PDFの操作を選択</div>
+              <a href="{{ search_results_pdf_open_href }}" target="_blank" rel="noopener">PDFを開く</a>
+              <a href="{{ search_results_pdf_download_href }}">PDFをダウンロード</a>
+            {% endif %}
           </div>
         </div>
         {% else %}
@@ -1242,6 +1261,7 @@
                 {% for trend in group.series %}
                 <article class="trend-result-panel {% if trend.region == '日本' %}region-japan{% else %}region-world{% endif %}">
                   <h4 class="trend-region-heading"><span>{{ trend.region }}</span><span class="trend-region-label">過去7日間</span></h4>
+                  <p class="trend-result-text">最終更新: {{ trend.last_updated_at }}</p>
                   {% if trend.available %}
                   <p class="trend-result-text">検索関心度は、最新値 <strong>{{ trend.latest_value }}</strong>、平均値 <strong>{{ trend.average_value }}</strong>、最高値 <strong>{{ trend.peak_value }}</strong> でした。</p>
                   <div class="trend-result-chart-wrap">
@@ -1262,7 +1282,9 @@
                   {% endif %}
                   <div class="trend-panel-links">
                     <a href="{{ trend.explore_url }}" target="_blank" rel="noopener noreferrer">Google Trendsで開く</a>
+                    {% if trend.detail_url %}
                     <a href="{{ trend.detail_url }}?return_to={{ current_list_url | urlencode }}">取得データの詳細</a>
+                    {% endif %}
                   </div>
                   {% else %}
                   <div class="trend-unavailable">{{ trend.region }}の検索データを取得できませんでした。<br>次回のクロール結果をご確認ください。</div>
@@ -1440,6 +1462,26 @@
         });
         document.addEventListener('keydown', (event) => {
           if (event.key === 'Escape') closeDailyMenu();
+        });
+      }
+
+      const newsExportMonth = document.getElementById('news-export-month');
+      const newsExportOpen = document.getElementById('news-export-open');
+      const newsExportDownload = document.getElementById('news-export-download');
+      if (newsExportMonth && newsExportOpen && newsExportDownload) {
+        newsExportMonth.addEventListener('change', () => {
+          const selectedOption = newsExportMonth.selectedOptions[0];
+          const openHref = selectedOption?.dataset.openHref || '';
+          const downloadHref = selectedOption?.dataset.downloadHref || '';
+          for (const [link, href] of [[newsExportOpen, openHref], [newsExportDownload, downloadHref]]) {
+            if (href) {
+              link.href = href;
+              link.removeAttribute('aria-disabled');
+            } else {
+              link.removeAttribute('href');
+              link.setAttribute('aria-disabled', 'true');
+            }
+          }
         });
       }
 

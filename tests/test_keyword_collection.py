@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
+from app import build_keyword_match_filter
 from keyword_collection import KeywordCollector, matches_requested_keyword
 
 
@@ -23,6 +24,16 @@ class KeywordCollectionTests(unittest.TestCase):
         self.assertTrue(matches_requested_keyword("Physical AI", "Physical AI robot", ""))
         self.assertTrue(matches_requested_keyword("AI robot", "New robot with AI", ""))
         self.assertFalse(matches_requested_keyword("Physical AI", "Physical robot", "AI software"))
+
+    def test_vla_and_vtla_searches_do_not_match_source_metadata(self):
+        vtla_filter = str(build_keyword_match_filter("VTLA"))
+        normal_filter = str(build_keyword_match_filter("Physical AI"))
+
+        self.assertNotIn("raw_items.raw_text", vtla_filter)
+        self.assertNotIn("raw_items.source_name", vtla_filter)
+        self.assertNotIn("raw_items.raw_summary", vtla_filter)
+        self.assertIn("raw_items.title", vtla_filter)
+        self.assertIn("raw_items.raw_text", normal_filter)
 
     def test_google_news_fetches_new_matching_candidates(self):
         collector = KeywordCollector()

@@ -43,6 +43,7 @@
             {% for series in group.series %}
               <div class="series {% if series.region == '世界' %}world{% endif %}">
                 <div class="series-head"><strong>{{ series.region }}</strong><a href="{{ series.explore_url }}" target="_blank" rel="noopener">Google Trendsで開く</a></div>
+                <p class="note">最終更新: {{ series.last_updated_at }}</p>
                 {% if series.points %}
                   <p class="trend-summary">過去7日間の検索関心度は、最新値 <strong>{{ series.latest_value }}</strong>、平均値 <strong>{{ series.average_value }}</strong>、最高値 <strong>{{ series.peak_value }}</strong> でした。</p>
                   {% if series.rankings %}

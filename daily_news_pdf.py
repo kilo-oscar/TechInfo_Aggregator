@@ -418,6 +418,10 @@ def render_daily_news_pdf(
                 if trend:
                     article.extend([
                         Paragraph(
+                            f'最終更新: <b>{escape(str(trend.get("last_updated_at", "未取得")))}</b>',
+                            meta_style,
+                        ),
+                        Paragraph(
                             "過去7日間の検索関心度: "
                             f'最新値 <b>{escape(str(trend.get("latest_value", "-")))}</b> / '
                             f'平均値 <b>{escape(str(trend.get("average_value", "-")))}</b> / '

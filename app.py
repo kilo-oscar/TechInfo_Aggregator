@@ -1,12 +1,12 @@
 from flask import Flask, Response, render_template, request, redirect, url_for, has_request_context
-from sqlalchemy import or_, case
+from sqlalchemy import and_, or_, case
 from sqlalchemy import text
 from bs4 import BeautifulSoup
 import json
 from urllib.parse import urlencode
 import re
 from math import ceil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import Counter
 
 from models import db, RawItem
@@ -24,9 +24,14 @@ from monthly_reports import (
     render_report_markdown,
 )
 from daily_news_pdf import render_daily_news_pdf
-from trend_settings import DEFAULT_TREND_KEYWORDS
+from trend_settings import DEFAULT_TREND_KEYWORDS, TREND_REGIONS
 
 EXPORTABLE_SOURCE_TYPES = {"company", "event", "news", "paper", "policy", "thinktank"}
+PRECISE_ARTICLE_KEYWORDS = {"vla", "vtla"}
+MODEL_TITLE_CONTEXT_KEYWORDS = (
+    "model", "モデル", "robot", "ロボット", "vision", "action", "tactile",
+    "ai", "自動運転", "physical", "フィジカル",
+)
 
 load_project_env()
 
@@ -106,6 +111,30 @@ def normalize_crawl_date(value: str) -> str:
         datetime.strptime(normalized, "%Y-%m-%d")
     except ValueError:
         return ""
+
+
+def build_keyword_match_filter(keyword: str):
+    """Build the DB filter for a user-entered keyword.
+
+    VLA and VTLA are model names, so a source label such as
+    ``VLA・VTLA Models`` must not make a VLA article appear in a VTLA search.
+    For these terms, only an article title that names the model and has a
+    robotics/model context is used. Google News RSS summaries include opaque
+    redirect URLs, where a coincidental character sequence can otherwise
+    produce false positives.
+    """
+    pattern = f"%{keyword}%"
+    if keyword.casefold() in PRECISE_ARTICLE_KEYWORDS:
+        return and_(
+            RawItem.title.ilike(pattern),
+            or_(*(RawItem.title.ilike(f"%{context}%") for context in MODEL_TITLE_CONTEXT_KEYWORDS)),
+        )
+    return or_(
+        RawItem.title.ilike(pattern),
+        RawItem.raw_summary.ilike(pattern),
+        RawItem.raw_text.ilike(pattern),
+        RawItem.source_name.ilike(pattern),
+    )
     return normalized
 
 
@@ -160,6 +189,34 @@ def build_archive_links() -> list[dict]:
             ),
         })
     return links
+
+
+def build_export_months(source_type: str) -> list[dict]:
+    """Return the publication months that can be selected for a PDF export."""
+    rows = (
+        db.session.query(
+            db.func.substr(RawItem.published_at, 1, 7).label("archive_month"),
+            db.func.count(RawItem.id),
+        )
+        .filter(
+            RawItem.source_type == source_type,
+            RawItem.published_at.isnot(None),
+            RawItem.published_at != "",
+            RawItem.published_at.op("GLOB")("20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]"),
+        )
+        .group_by("archive_month")
+        .order_by(text("archive_month DESC"))
+        .all()
+    )
+    return [
+        {
+            "month": month,
+            "label": format_archive_month_label(month),
+            "count": count,
+        }
+        for raw_month, count in rows
+        if (month := normalize_archive_month(raw_month or ""))
+    ]
 
 
 def build_display_category_priority():
@@ -645,6 +702,9 @@ def enrich_event_fields(item: RawItem) -> None:
     item.event_start_date = payload.get("start_date", "") if payload else ""
     item.event_end_date = payload.get("end_date", "") if payload else ""
     item.event_location = payload.get("location", "") if payload else ""
+    # PDF generation uses this shared enrichment path without passing through
+    # the event-list view, where the country had previously been assigned.
+    item.event_country = extract_event_country(item)
     item.event_period = format_event_period(item.event_start_date, item.event_end_date)
 
 
@@ -991,7 +1051,6 @@ def attach_event_hierarchy(items: list[RawItem], query_text: str = "") -> list[R
 def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI情報収集クローラ", base_path: str = "/"):
     q = request.args.get("q", "").strip()
     requested_collection_status = request.args.get("collection_status", "").strip()
-    is_collection_result_request = requested_collection_status == "ok" and bool(q)
     source_name = request.args.get("source_name", "").strip()
     source_type = request.args.get("source_type", "").strip()
     event_country = request.args.get("event_country", "").strip()
@@ -1020,19 +1079,7 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         query = query.filter(RawItem.fetched_at >= utc_start, RawItem.fetched_at < utc_end)
 
     if q:
-        query = query.filter(
-            or_(
-                RawItem.title.ilike(f"%{q}%"),
-                RawItem.raw_summary.ilike(f"%{q}%"),
-                RawItem.raw_text.ilike(f"%{q}%"),
-                RawItem.source_name.ilike(f"%{q}%"),
-            )
-        )
-        if is_collection_result_request:
-            query = query.filter(
-                RawItem.source_name.like("Keyword /%"),
-                RawItem.raw_text.contains(f"Keyword: {q}", autoescape=True),
-            )
+        query = query.filter(build_keyword_match_filter(q))
 
     if archive_month:
         query = query.filter(RawItem.published_at.like(f"{archive_month}-%"))
@@ -1113,7 +1160,10 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         page = 1
         items = candidate_items
     elif source_type == "trend":
-        candidate_items = query.all()
+        # Do not let the selected crawl date hide a trend pair after a failed
+        # Google request. The browser uses the same latest-or-placeholder set
+        # as the daily PDF.
+        candidate_items = build_latest_default_trend_items()
         latest_trends: dict[tuple[str, str], dict] = {}
         for candidate in candidate_items:
             series = build_google_trend_series(candidate)
@@ -1122,7 +1172,7 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
             key = (series["keyword"], series["region"])
             if key not in latest_trends:
                 series["available"] = bool(series["points"])
-                series["detail_url"] = f"/raw/{candidate.id}"
+                series["detail_url"] = f"/raw/{candidate.id}" if candidate.id else ""
                 latest_trends[key] = {"item": candidate, "series": series}
 
         grouped_trends: dict[str, dict] = {
@@ -1147,6 +1197,7 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
                     "region": region,
                     "available": False,
                     "rankings": [],
+                    "last_updated_at": "未取得",
                 }))
             all_trend_groups.append({"keyword": keyword, "series": region_series, "item": group["item"]})
 
@@ -1208,6 +1259,11 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         .order_by(RawItem.source_type.asc())
         .all()
     ]
+    # The daily-news view keeps the fixed Google Trends set visible even when
+    # the latest collection only succeeded for some (or none) of its pairs.
+    if crawl_date and "trend" not in source_types:
+        source_types.append("trend")
+        source_types.sort()
 
     type_counts_raw = (
         summary_query.with_entities(RawItem.source_type, db.func.count(RawItem.id))
@@ -1215,6 +1271,8 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         .all()
     )
     type_counts = {source_type: count for source_type, count in type_counts_raw}
+    if crawl_date:
+        type_counts["trend"] = len(DEFAULT_TREND_KEYWORDS) * len(TREND_REGIONS)
     if "event" in type_counts:
         # The event tile represents unique exhibitions, not raw records such
         # as Japanese/English variants of the same official event page.
@@ -1292,6 +1350,26 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
                 export_pdf_params["archive_month"] = archive_month
         export_pdf_endpoint = "filtered_search_results_pdf"
 
+    # News exports can be large enough to make PDF generation slow.  Require a
+    # publication month on the result-page export menu and prebuild the exact
+    # URLs for each selectable month so every existing filter is retained.
+    is_news_month_export_view = (
+        source_type == "news" and not is_collection_result_view
+    )
+    news_export_months = []
+    if is_news_month_export_view:
+        for month in build_export_months("news"):
+            month_params = {**export_pdf_params, "archive_month": month["month"]}
+            news_export_months.append({
+                **month,
+                "open_href": url_for(
+                    export_pdf_endpoint, **month_params, disposition="inline"
+                ),
+                "download_href": url_for(
+                    export_pdf_endpoint, **month_params, disposition="attachment"
+                ),
+            })
+
     return render_template(
         "list.html",
         page_title=page_title,
@@ -1323,6 +1401,11 @@ def render_item_list(*, archive_month: str = "", page_title: str = "Physical-AI�
         daily_news_pdf_download_href=url_for("today_news_pdf", date=crawl_date, disposition="attachment") if crawl_date else "",
         search_results_pdf_open_href=url_for(export_pdf_endpoint, **export_pdf_params, disposition="inline") if is_export_result_view else "",
         search_results_pdf_download_href=url_for(export_pdf_endpoint, **export_pdf_params, disposition="attachment") if is_export_result_view else "",
+        is_news_month_export_view=is_news_month_export_view,
+        news_export_months=news_export_months,
+        selected_news_export_month=archive_month if any(
+            month["month"] == archive_month for month in news_export_months
+        ) else "",
         is_collection_result_view=is_collection_result_view,
         is_export_result_view=is_export_result_view,
         is_all_news_view=request.path == "/" and not request.query_string,
@@ -1413,7 +1496,7 @@ def build_pdf_category_groups(items: list[RawItem]) -> list[dict]:
             pdf_item.update({
                 "event_start_date": item.event_start_date or "",
                 "event_end_date": item.event_end_date or item.event_start_date or "",
-                "event_country": item.event_country or extract_event_country(item),
+                "event_country": getattr(item, "event_country", "") or extract_event_country(item),
             })
         if item.source_type == "trend":
             series = build_google_trend_series(item)
@@ -1421,7 +1504,7 @@ def build_pdf_category_groups(items: list[RawItem]) -> list[dict]:
                 key: series[key]
                 for key in (
                     "keyword", "region", "latest_value", "average_value", "peak_value",
-                    "values", "start_date", "end_date", "interval_label", "point_count", "rankings",
+                    "values", "start_date", "end_date", "interval_label", "point_count", "rankings", "last_updated_at",
                 )
             }
         grouped_items.setdefault(item.source_type or "other", []).append(pdf_item)
@@ -1454,6 +1537,11 @@ def build_daily_information_pdf(report_date: str) -> tuple[bytes, int]:
         .order_by(RawItem.source_type.asc(), RawItem.published_at.desc(), RawItem.fetched_at.desc())
         .all()
     )
+    # A Google Trends request may be rate-limited or temporarily unavailable.
+    # Daily reports always show the fixed 8 keywords × 2 regions, using the
+    # last successful snapshot rather than omitting failed combinations.
+    items = [item for item in items if item.source_type != "trend"]
+    items.extend(build_latest_default_trend_items())
     pdf_data = render_daily_news_pdf(report_date, build_pdf_category_groups(items))
     return pdf_data, len(items)
 
@@ -1484,10 +1572,7 @@ def search_results_pdf():
         disposition = "attachment"
     items = (
         RawItem.query
-        .filter(
-            RawItem.source_name.like("Keyword /%"),
-            RawItem.raw_text.contains(f"Keyword: {keyword}", autoescape=True),
-        )
+        .filter(build_keyword_match_filter(keyword))
         .order_by(RawItem.source_type.asc(), RawItem.published_at.desc(), RawItem.fetched_at.desc())
         .all()
     )
@@ -1717,6 +1802,13 @@ def build_google_trend_series(item: RawItem) -> dict:
             "name": region_value.get("name", "地域名不明"),
             "value": region_value.get("value", 0),
         })
+    fetched_at = getattr(item, "fetched_at", None)
+    if fetched_at:
+        if fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+        last_updated_at = fetched_at.astimezone(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M JST")
+    else:
+        last_updated_at = "未取得"
     return {
         "item": item,
         "keyword": payload.get("keyword", item.title),
@@ -1734,17 +1826,64 @@ def build_google_trend_series(item: RawItem) -> dict:
         "end_date": end_date,
         "interval_label": interval_label,
         "error": payload.get("error", ""),
+        "last_updated_at": last_updated_at,
     }
+
+
+def build_unavailable_trend_item(keyword: str, geo: str, region_label: str) -> RawItem:
+    """Return a display-only placeholder for a never-successful trend pair."""
+    explore_params = {"q": keyword, "date": "now 7-d"}
+    if geo:
+        explore_params["geo"] = geo
+    return RawItem(
+        source_name=f"Google Trends / {region_label}",
+        source_type="trend",
+        title=f"Google Trends: {keyword} / {region_label}",
+        url="https://trends.google.com/trends/explore?" + urlencode(explore_params),
+        published_at="",
+        raw_summary="Google Trendsの取得データはまだありません。",
+        raw_text=json.dumps({
+            "provider": "Google Trends",
+            "keyword": keyword,
+            "geo": geo,
+            "region_label": region_label,
+            "time_range": "now 7-d",
+            "explore_url": "https://trends.google.com/trends/explore?" + urlencode(explore_params),
+            "points": [],
+            "regional_interest": [],
+            "error": "まだ正常に取得されたデータがありません。",
+        }, ensure_ascii=False),
+    )
+
+
+def build_latest_default_trend_items() -> list[RawItem]:
+    """Return exactly one current-or-last-known item for every default pair."""
+    expected_titles = {
+        f"Google Trends: {keyword} / {region_label}"
+        for keyword in DEFAULT_TREND_KEYWORDS
+        for _geo, region_label in TREND_REGIONS
+    }
+    rows = (
+        RawItem.query
+        .filter(RawItem.source_type == "trend", RawItem.title.in_(expected_titles))
+        .order_by(RawItem.fetched_at.desc(), RawItem.id.desc())
+        .all()
+    )
+    latest_by_title: dict[str, RawItem] = {}
+    for row in rows:
+        latest_by_title.setdefault(row.title, row)
+
+    items: list[RawItem] = []
+    for keyword in DEFAULT_TREND_KEYWORDS:
+        for geo, region_label in TREND_REGIONS:
+            title = f"Google Trends: {keyword} / {region_label}"
+            items.append(latest_by_title.get(title) or build_unavailable_trend_item(keyword, geo, region_label))
+    return items
 
 
 @app.route("/trends")
 def google_trends_page():
-    items = (
-        RawItem.query
-        .filter(RawItem.source_type == "trend")
-        .order_by(RawItem.published_at.desc(), RawItem.id.desc())
-        .all()
-    )
+    items = build_latest_default_trend_items()
     latest: dict[tuple[str, str], dict] = {}
     for item in items:
         series = build_google_trend_series(item)
@@ -1765,6 +1904,7 @@ def google_trends_page():
                 "region": region,
                 "points": "",
                 "error": "まだ正常な取得データがありません。",
+                "last_updated_at": "未取得",
                 "explore_url": "https://trends.google.com/trends/explore?" + urlencode({
                     "q": keyword,
                     "date": "now 7-d",
